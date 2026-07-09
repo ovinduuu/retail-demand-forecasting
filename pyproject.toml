@@ -21,6 +21,10 @@ data = [
 ml = [
     "lightgbm>=4.3",
     "scikit-learn>=1.5",
+]
+# Split out from "ml": prophet needs a much heavier native build (cmdstan)
+# and is only used as an optional comparison baseline, not by train.py.
+prophet = [
     "prophet>=1.1",
 ]
 notebook = [

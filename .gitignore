@@ -37,6 +37,9 @@ profiles.yml
 # Notebooks
 .ipynb_checkpoints/
 
+# Local training outputs (models, run logs) — not committed
+artifacts/
+
 # OS / editor
 .DS_Store
 .idea/

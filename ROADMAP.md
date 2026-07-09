@@ -14,16 +14,21 @@
       (unit tested); `notebooks/01_eda.ipynb` runs end-to-end on a local
       synthetic sample (seasonality plots + baseline comparison) — swap in a
       real `fct_sales` query once GCP/dbt are set up.
-- [ ] **Phase 3 — Feature engineering & training**: feature build on top of
-      `fct_sales` (lags, rolling means, price/promo, calendar features);
-      `train.py` (LightGBM) and `evaluate.py` (WRMSSE/MAPE); experiment
-      tracking via Vertex AI Experiments.
+- [x] **Phase 3 — Feature engineering & training**: lag/rolling/calendar
+      features (+ price/SNAP/event pass-through) in
+      `src/retail_demand/models/features.py`; a LightGBM training CLI
+      (`train.py`) with a time-based validation split; evaluation
+      (`evaluate.py`) with MAPE, RMSE, and a single-grain sales-weighted
+      RMSSE (documented as a simplification of the full 12-level M5 WRMSSE).
+      Experiment tracking is a local JSONL run log for now — Vertex AI
+      Experiments needs real GCP credentials, deferred to Phase 4.
 - [ ] **Phase 4 — Pipeline**: Vertex AI Pipeline (KFP v2) in
       `src/retail_demand/pipelines/training_pipeline.py` wiring
       dbt transform -> feature build -> train -> evaluate -> conditional
-      register in Vertex AI Model Registry.
+      register in Vertex AI Model Registry; wire `train.py`'s run log to
+      Vertex AI Experiments now that GCP credentials are in the loop.
 - [ ] **Phase 5 — CI/CD**: extend `.github/workflows` with a Cloud Build
-      trigger that runs the Vertex AI pipeline on merge to `main`.
+      trigger that runs the Vertex AI pipeline on merge to `master`.
 - [ ] **Phase 6 — Serving**: scheduled Vertex AI batch prediction job
       (primary path); optional FastAPI app on Cloud Run for live requests.
 - [ ] **Phase 7 — Monitoring**: Vertex AI Model Monitoring (skew/drift),

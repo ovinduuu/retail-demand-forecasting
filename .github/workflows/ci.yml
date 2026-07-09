@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   lint-and-test:
@@ -15,11 +15,11 @@ jobs:
         uses: astral-sh/setup-uv@v3
 
       - name: Install dependencies
-        # Only base + dev deps for now: the "gcp"/"data"/"ml" extras need
-        # real credentials or heavy native deps (kaggle, lightgbm, prophet)
-        # not yet exercised by any test. Widen this as later phases add
-        # tests that need them.
-        run: uv sync --extra dev
+        # "gcp"/"data"/"prophet" extras need real credentials or a heavy
+        # native build (kaggle, prophet's cmdstan) not yet exercised by any
+        # test. "ml" (lightgbm/scikit-learn) is a plain wheel install and is
+        # needed by tests/test_train.py.
+        run: uv sync --extra dev --extra ml
 
       - name: Lint
         run: uv run ruff check .
