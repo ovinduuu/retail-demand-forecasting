@@ -126,16 +126,19 @@ def register_model(
     project_id: str,
     region: str,
     serving_container_image_uri: str,
+    serving_model_gcs_path: str,
     display_name: str = "retail-demand-lightgbm",
 ) -> str:
-    """Upload the trained model to Vertex AI Model Registry.
+    """Upload the trained model to Vertex AI Model Registry, and copy it to
+    a fixed GCS path for serving to consume.
 
-    `serving_container_image_uri` must point to a real serving image - there
-    is no generic pre-built Vertex container for a raw LightGBM booster
-    file. Phase 6 (serving) builds that image; until then this component is
-    written but not runnable end-to-end.
+    Vertex's own artifact path (model.uri) is versioned/dynamic per pipeline
+    run, which is fine for the registry but not for a simple fixed-path
+    reader - src/retail_demand/serving/batch_predict.py's Cloud Run Job
+    always reads from `serving_model_gcs_path`, so this component publishes
+    each newly-registered model there too.
     """
-    from google.cloud import aiplatform
+    from google.cloud import aiplatform, storage
 
     aiplatform.init(project=project_id, location=region)
     artifact_dir = model.uri.rsplit("/", 1)[0]
@@ -145,4 +148,12 @@ def register_model(
         artifact_uri=artifact_dir,
         serving_container_image_uri=serving_container_image_uri,
     )
+
+    storage_client = storage.Client(project=project_id)
+    src_bucket_name, _, src_blob_path = model.uri[len("gs://") :].partition("/")
+    dst_bucket_name, _, dst_blob_path = serving_model_gcs_path[len("gs://") :].partition("/")
+    src_blob = storage_client.bucket(src_bucket_name).blob(src_blob_path)
+    dst_blob = storage_client.bucket(dst_bucket_name).blob(dst_blob_path)
+    dst_blob.rewrite(src_blob)
+
     return uploaded.resource_name

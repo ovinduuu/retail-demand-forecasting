@@ -33,6 +33,7 @@ def training_pipeline(
     start_date: str,
     end_date: str,
     serving_container_image_uri: str,
+    serving_model_gcs_path: str,
     bq_location: str = "US",
     valid_days: int = 28,
     wrmsse_threshold: float = DEFAULT_WRMSSE_THRESHOLD,
@@ -56,6 +57,7 @@ def training_pipeline(
             project_id=project_id,
             region=region,
             serving_container_image_uri=serving_container_image_uri,
+            serving_model_gcs_path=serving_model_gcs_path,
             display_name=model_display_name,
         )
 

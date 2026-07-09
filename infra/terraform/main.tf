@@ -147,3 +147,88 @@ resource "google_cloudbuild_trigger" "training_pipeline" {
 
   service_account = google_service_account.pipeline.id
 }
+
+# --- Optional: live-request serving API (Cloud Run service) ----------------
+# Created only once var.serving_image_uri is set to a real, pushed image -
+# the base infra above can be applied without it. No public IAM binding is
+# created, so the service requires an authenticated caller by default; to
+# demo it publicly, add a google_cloud_run_v2_service_iam_member granting
+# roles/run.invoker to "allUsers".
+resource "google_cloud_run_v2_service" "serving" {
+  count    = var.serving_image_uri != "" ? 1 : 0
+  name     = "retail-demand-serving"
+  project  = var.project_id
+  location = var.region
+  ingress  = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    scaling {
+      min_instance_count = 0 # scale to zero: no idle cost
+      max_instance_count = 2
+    }
+    containers {
+      image = var.serving_image_uri
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+    }
+  }
+}
+
+# --- Batch prediction: scheduled Cloud Run Job + Cloud Scheduler trigger ---
+# Created only once var.pipeline_image_uri is set to a real, pushed image.
+resource "google_cloud_run_v2_job" "batch_predict" {
+  count    = var.pipeline_image_uri != "" ? 1 : 0
+  name     = "retail-demand-batch-predict"
+  project  = var.project_id
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.pipeline.email
+      containers {
+        image   = var.pipeline_image_uri
+        command = ["python", "-m", "retail_demand.serving.batch_predict"]
+        args = [
+          "--project-id", var.project_id,
+          "--model-path", "gs://${var.raw_bucket_name}/models/lightgbm_model.txt",
+        ]
+      }
+      max_retries = 1
+    }
+  }
+}
+
+resource "google_service_account" "scheduler" {
+  count        = var.pipeline_image_uri != "" ? 1 : 0
+  account_id   = "retail-demand-scheduler"
+  project      = var.project_id
+  display_name = "Invokes the batch-predict Cloud Run Job on a schedule"
+}
+
+resource "google_project_iam_member" "scheduler_run_developer" {
+  count   = var.pipeline_image_uri != "" ? 1 : 0
+  project = var.project_id
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.scheduler[0].email}"
+}
+
+resource "google_cloud_scheduler_job" "batch_predict_daily" {
+  count     = var.pipeline_image_uri != "" ? 1 : 0
+  name      = "retail-demand-batch-predict-daily"
+  project   = var.project_id
+  region    = var.region
+  schedule  = "0 6 * * *" # 06:00 UTC daily
+  time_zone = "UTC"
+
+  http_target {
+    uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.batch_predict[0].name}:run"
+    http_method = "POST"
+    oauth_token {
+      service_account_email = google_service_account.scheduler[0].email
+    }
+  }
+}

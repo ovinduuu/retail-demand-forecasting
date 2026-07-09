@@ -12,6 +12,7 @@ substitutions:
   _PIPELINE_ROOT: gs://${PROJECT_ID}-retail-demand-raw/pipeline-root
   _BQ_LOCATION: US
   _SERVING_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/retail-demand/serving:latest
+  _SERVING_MODEL_GCS_PATH: gs://${PROJECT_ID}-retail-demand-raw/models/lightgbm_model.txt
 
 steps:
   - id: build-pipeline-image
@@ -50,7 +51,8 @@ steps:
           --region "${_REGION}" \
           --pipeline-root "${_PIPELINE_ROOT}" \
           --bq-location "${_BQ_LOCATION}" \
-          --serving-container-image-uri "${_SERVING_IMAGE}"
+          --serving-container-image-uri "${_SERVING_IMAGE}" \
+          --serving-model-gcs-path "${_SERVING_MODEL_GCS_PATH}"
     waitFor: [push-pipeline-image-sha]
 
 options:

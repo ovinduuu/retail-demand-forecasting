@@ -1,11 +1,21 @@
-# Terraform — base GCP infra
+# Terraform — GCP infra
 
 Provisions the shared infra: raw GCS bucket, BigQuery datasets
 (raw/staging/marts), an Artifact Registry Docker repo, a service account for
 pipeline/training/CI jobs, and a Cloud Build trigger that builds the pipeline
-image and submits a Vertex AI training run on push to `master`. Cloud Run
-services and the Cloud Scheduler retraining trigger are added in later
-phases (once those components exist) rather than provisioned up front.
+image and submits a Vertex AI training run on push to `master`.
+
+Two resource groups are conditional on an image already existing, so the
+base infra can be applied before any images are built:
+
+- `google_cloud_run_v2_service.serving` — the optional live-request demo,
+  created only once `serving_image_uri` is set.
+- `google_cloud_run_v2_job.batch_predict` + its `google_cloud_scheduler_job`
+  — the primary daily batch-scoring path, created only once
+  `pipeline_image_uri` is set.
+
+The Cloud Scheduler retraining trigger (Phase 7) is added once that
+component exists.
 
 **Not yet applied** — this requires your own GCP project and billing, and
 hasn't been validated with `terraform validate`/`plan` either (the
@@ -51,6 +61,19 @@ testing):
 gcloud builds submit --config cloudbuild.yaml --project <your-project-id>
 ```
 
+Once both images exist (built by the Cloud Build trigger above, or manually
+via `docker build`/`docker push`), re-apply with the image variables set to
+create the serving Cloud Run service and the batch-predict Cloud Run Job +
+scheduler:
+
+```bash
+terraform apply \
+  -var="project_id=<your-project-id>" \
+  -var="raw_bucket_name=<your-project-id>-retail-demand-raw" \
+  -var="pipeline_image_uri=<region>-docker.pkg.dev/<your-project-id>/retail-demand/pipeline:latest" \
+  -var="serving_image_uri=<region>-docker.pkg.dev/<your-project-id>/retail-demand/serving:latest"
+```
+
 ## Cost notes
 
 - BigQuery: 10 GB storage + 1 TB query/month are free; this dataset (a subset
@@ -63,5 +86,14 @@ gcloud builds submit --config cloudbuild.yaml --project <your-project-id>
 - Cloud Build: 120 free build-minutes/day; building the pipeline image and
   submitting a training run on each push to master stays well within that
   for a project this size.
+- Cloud Run service (serving demo): `min_instance_count = 0`, so it scales
+  to zero and costs nothing when idle; you only pay for the seconds it
+  actually handles a request. No public IAM binding is created by default,
+  so it isn't reachable (or billable from stray traffic) until you
+  explicitly grant `roles/run.invoker` to `allUsers`.
+- Cloud Run Job (batch predict) + Cloud Scheduler: billed only for the job's
+  actual daily run time (a few seconds of BigQuery I/O + a small model
+  predict), plus Cloud Scheduler's free tier (3 free jobs/month covers this
+  one job easily).
 - Run `terraform destroy` when you're done experimenting to avoid any
   lingering storage cost.

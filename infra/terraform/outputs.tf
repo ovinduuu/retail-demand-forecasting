@@ -25,3 +25,8 @@ output "artifact_registry_repo" {
 output "cloudbuild_trigger_id" {
   value = google_cloudbuild_trigger.training_pipeline.trigger_id
 }
+
+output "serving_url" {
+  value       = length(google_cloud_run_v2_service.serving) > 0 ? google_cloud_run_v2_service.serving[0].uri : null
+  description = "Null until serving_image_uri is set and the Cloud Run service is created."
+}
