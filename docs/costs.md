@@ -16,6 +16,7 @@ measured spend.
 | Cloud Run (serving service) | optional live-request demo | `min_instance_count = 0` — scales to zero, billed only per request handled; no public IAM binding by default, so idle = zero cost and zero exposure |
 | Cloud Run Jobs (batch-predict, drift-check, retrain-trigger) | scheduled batch scoring, drift check, retrain decision | billed only for actual run seconds — no standing container between runs |
 | Cloud Scheduler | triggers the three Cloud Run Jobs daily | free tier covers 3 jobs/account/month; this project uses exactly 3 |
+| Vercel | hosts the Next.js frontend | free Hobby tier covers a low-traffic personal demo entirely; it's not on GCP at all, so it doesn't touch the free-tier budgets above |
 
 ## What's deliberately *not* used, and why
 

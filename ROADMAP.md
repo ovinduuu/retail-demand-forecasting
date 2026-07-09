@@ -1,11 +1,11 @@
 # Roadmap
 
-**Status: all 8 phases implemented and merged.** Every phase below is real,
-tested code — 50 passing tests, no cloud credentials required to run them.
-What's *not* done is deploying any of it to an actual GCP project: that
-needs a Kaggle account and GCP billing that only you can provide (see
-"Prerequisites" below). Everywhere a phase says "written, not applied" or
-similar, that's the reason.
+**Status: all 9 phases implemented and merged.** Every phase below is real,
+tested code — 54 passing tests, no cloud credentials required to run them.
+What's *not* done is deploying any of it to an actual GCP project or
+Vercel: that needs a Kaggle account, GCP billing, and a Vercel account that
+only you can provide (see "Prerequisites" below). Everywhere a phase says
+"written, not applied" or similar, that's the reason.
 
 - [x] **Phase 0 — Scaffold**: repo structure, `uv`/`pyproject.toml` dependency
       management, `ruff` lint, GitHub Actions CI, git init.
@@ -94,20 +94,41 @@ similar, that's the reason.
       to visual evidence is `notebooks/01_eda.ipynb`, which is committed
       with its actual rendered plots from a real (local, synthetic-data)
       execution.
+- [x] **Phase 9 — Frontend**: `frontend/` (Next.js App Router, TypeScript,
+      Tailwind) — pick a store/item, see recent sales and the model's
+      one-step-ahead forecast on a hand-built SVG chart (no charting
+      library). Backend gained three new routes in
+      `src/retail_demand/serving/app.py` (`/series`, `/history/{store}/{item}`,
+      `/forecast/{store}/{item}`) plus CORS, with a `LOCAL_DATA_CSV` fallback
+      so the whole stack is runnable locally without GCP credentials — used
+      to verify this phase end-to-end (real backend, real Next.js dev
+      server, real HTTP requests, not just unit tests). Frontend deploys to
+      Vercel (see `frontend/README.md`), independent of the GCP side.
+      Found and fixed three more cross-phase gaps while wiring this up: the
+      serving Cloud Run service had no env vars (`GCP_PROJECT_ID`,
+      `MODEL_PATH`, `ALLOWED_ORIGINS`) or service account set in Terraform;
+      `docker/serving.Dockerfile` was missing the `gcp` extra the new routes
+      need; and the root `.gitignore`'s blanket `*.json` rule was silently
+      excluding the frontend's `tsconfig.json`/`package-lock.json` (narrowed
+      to the specific credential-filename patterns it was actually meant
+      to catch).
 
 ## Deploying this for real
 
 Everything above is implemented and locally verified wherever that's
-possible without cloud credentials. To actually run it against GCP:
+possible without cloud credentials. To actually run it against GCP and
+Vercel:
 
-1. Get a Kaggle account + API token (`data/README.md`) and a GCP project
-   with billing enabled.
+1. Get a Kaggle account + API token (`data/README.md`), a GCP project with
+   billing enabled, and a Vercel account.
 2. Follow `README.md`'s "Getting started" steps 2-4: apply the base
    Terraform infra, load data + run dbt, then build/push both Docker images
    and re-apply Terraform to bring up the Cloud Run services/jobs and
    Cloud Scheduler triggers.
 3. Push to `master` (or run `gcloud builds submit --config cloudbuild.yaml`
    manually) to get the first real training pipeline run.
+4. Deploy `frontend/` to Vercel pointed at the serving Cloud Run URL from
+   step 2 (`frontend/README.md`).
 
 ## Prerequisites to unblock real deployment
 
@@ -115,3 +136,4 @@ possible without cloud credentials. To actually run it against GCP:
 - GCP project with billing enabled + `gcloud`/`terraform` CLIs installed
   locally — needed to apply `infra/terraform` and run anything against
   BigQuery/Vertex AI.
+- Vercel account (free tier is fine) — needed to deploy `frontend/`.

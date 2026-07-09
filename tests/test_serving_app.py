@@ -1,3 +1,5 @@
+import datetime as dt
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -28,6 +30,38 @@ def _train_tiny_model(tmp_path) -> str:
     model = lgb.train({"objective": "regression", "verbosity": -1}, train_set, num_boost_round=10)
 
     model_path = tmp_path / "model.txt"
+    model.save_model(str(model_path))
+    return str(model_path)
+
+
+def _make_history(days: int = 90) -> pd.DataFrame:
+    rng = np.random.default_rng(2)
+    start = dt.date(2024, 1, 1)
+    weekday_multiplier = np.array([1.0, 0.9, 0.9, 1.0, 1.1, 1.4, 1.3])
+    rows = []
+    for store_id, item_id in [("CA_1", "FOODS_1_001"), ("CA_1", "FOODS_1_002")]:
+        base = rng.uniform(8, 20)
+        for i in range(days):
+            date = start + dt.timedelta(days=i)
+            seasonal = base * weekday_multiplier[date.weekday()]
+            noise = rng.normal(loc=1.0, scale=0.1)
+            sales = max(0, round(seasonal * noise))
+            rows.append(
+                {
+                    "date": pd.Timestamp(date),
+                    "store_id": store_id,
+                    "item_id": item_id,
+                    "sales": sales,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _train_real_model(tmp_path, history: pd.DataFrame) -> str:
+    from retail_demand.models.train import run_training
+
+    model, _, _, _ = run_training(history, valid_days=14)
+    model_path = tmp_path / "real_model.txt"
     model.save_model(str(model_path))
     return str(model_path)
 
@@ -68,3 +102,54 @@ def test_predict_uses_only_the_models_own_feature_columns(tmp_path, monkeypatch)
     )
     assert resp.status_code == 200
     assert len(resp.json()["predictions"]) == 1
+
+
+def _csv_backed_client(tmp_path, monkeypatch, history: pd.DataFrame) -> TestClient:
+    csv_path = tmp_path / "history.csv"
+    history.to_csv(csv_path, index=False)
+    monkeypatch.setenv("LOCAL_DATA_CSV", str(csv_path))
+    monkeypatch.setenv("MODEL_PATH", _train_real_model(tmp_path, history))
+    return TestClient(app)
+
+
+def test_series_lists_distinct_store_item_pairs(tmp_path, monkeypatch):
+    history = _make_history()
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/series")
+
+    assert resp.status_code == 200
+    pairs = {(s["store_id"], s["item_id"]) for s in resp.json()}
+    assert pairs == {("CA_1", "FOODS_1_001"), ("CA_1", "FOODS_1_002")}
+
+
+def test_history_returns_recent_points_for_known_series(tmp_path, monkeypatch):
+    history = _make_history()
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/history/CA_1/FOODS_1_001", params={"days": 10})
+
+    assert resp.status_code == 200
+    points = resp.json()
+    assert len(points) == 10
+    assert points[-1]["date"] == history["date"].max().date().isoformat()
+
+
+def test_history_404s_for_unknown_series(tmp_path, monkeypatch):
+    history = _make_history()
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/history/UNKNOWN_STORE/UNKNOWN_ITEM")
+    assert resp.status_code == 404
+
+
+def test_forecast_returns_one_nonnegative_point_for_known_series(tmp_path, monkeypatch):
+    history = _make_history()
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/forecast/CA_1/FOODS_1_001")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["predicted_sales"] >= 0
+    assert body["date"] == (history["date"].max() + pd.Timedelta(days=1)).date().isoformat()

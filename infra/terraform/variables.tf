@@ -80,3 +80,14 @@ variable "serving_image_uri" {
   type    = string
   default = ""
 }
+
+variable "frontend_origin" {
+  description = <<-EOT
+    Origin (scheme + host, e.g. https://your-app.vercel.app) the serving
+    Cloud Run service's CORS policy allows. Leave as "" to allow all
+    origins ("*"), fine for a personal demo but worth tightening once the
+    frontend has a real deployed URL.
+  EOT
+  type    = string
+  default = ""
+}

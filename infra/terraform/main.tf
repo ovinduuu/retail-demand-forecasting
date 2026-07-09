@@ -170,12 +170,29 @@ resource "google_cloud_run_v2_service" "serving" {
   ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
+    service_account = google_service_account.pipeline.email
     scaling {
       min_instance_count = 0 # scale to zero: no idle cost
       max_instance_count = 2
     }
     containers {
       image = var.serving_image_uri
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "BQ_DATASET_MARTS"
+        value = var.bq_dataset_marts
+      }
+      env {
+        name  = "MODEL_PATH"
+        value = local.serving_model_gcs_path
+      }
+      env {
+        name  = "ALLOWED_ORIGINS"
+        value = var.frontend_origin != "" ? var.frontend_origin : "*"
+      }
       resources {
         limits = {
           cpu    = "1"
