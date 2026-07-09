@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: dim_item
+    description: One row per item, with department and category.
+    columns:
+      - name: item_id
+        tests: [not_null, unique]
+
+  - name: dim_store
+    description: One row per store, with state.
+    columns:
+      - name: store_id
+        tests: [not_null, unique]
+
+  - name: dim_calendar
+    description: One row per date, with events and SNAP flags.
+    columns:
+      - name: date
+        tests: [not_null, unique]
+
+  - name: fct_sales
+    description: >
+      One row per (date, store_id, item_id): sales quantity, price, and
+      calendar context. Grain-checked via a composite unique test.
+    columns:
+      - name: date
+        tests: [not_null]
+      - name: store_id
+        tests: [not_null]
+      - name: item_id
+        tests: [not_null]
+      - name: sales
+        tests: [not_null]

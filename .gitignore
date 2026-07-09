@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv/
+build/
+dist/
+
+# Env / secrets
+.env
+*.json
+!package.json
+!.vscode/*.json
+kaggle.json
+service-account*.json
+
+# Data
+data/raw/*
+data/external/*
+!data/raw/.gitkeep
+!data/external/.gitkeep
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/.terraform.lock.hcl
+infra/terraform/*.tfvars
+
+# dbt
+dbt/retail_demand/target/
+dbt/retail_demand/dbt_packages/
+dbt/retail_demand/logs/
+profiles.yml
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+*.log

@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: "{{ env_var('BQ_DATASET_RAW', 'retail_demand_raw') }}"
+    tables:
+      - name: sales_history
+        description: >
+          One row per (date, store_id, item_id) from the M5 sales_train_validation
+          data, melted from wide to long by prepare_m5.py.
+      - name: sales_daily_feed
+        description: >
+          Synthetic "new day" rows appended over time by
+          synthetic_daily_feed.py, simulating an ongoing feed on top of the
+          frozen M5 history.
+      - name: calendar
+        description: M5 calendar.csv — one row per date, with events and SNAP flags.
+      - name: sell_prices
+        description: M5 sell_prices.csv — weekly price per (store_id, item_id, wm_yr_wk).
