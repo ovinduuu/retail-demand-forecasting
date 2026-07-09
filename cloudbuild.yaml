@@ -1,0 +1,57 @@
+# Cloud Build config: build+push the pipeline image, then submit a Vertex AI
+# training pipeline run. Triggered by the google_cloudbuild_trigger in
+# infra/terraform on push to master (see infra/terraform/README.md for the
+# one-time manual GitHub connection step that trigger needs).
+#
+# Not yet wired to a real trigger/project - needs infra/terraform applied,
+# a GCS bucket for the Vertex pipeline root, and a
+# serving_container_image_uri from Phase 6.
+substitutions:
+  _REGION: us-central1
+  _REPO: retail-demand
+  _PIPELINE_ROOT: gs://${PROJECT_ID}-retail-demand-raw/pipeline-root
+  _BQ_LOCATION: US
+  _SERVING_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/retail-demand/serving:latest
+
+steps:
+  - id: build-pipeline-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/pipeline:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/pipeline:latest
+      - .
+
+  - id: push-pipeline-image-sha
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/pipeline:$SHORT_SHA
+    waitFor: [build-pipeline-image]
+
+  - id: push-pipeline-image-latest
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/pipeline:latest
+    waitFor: [build-pipeline-image]
+
+  - id: submit-training-pipeline
+    name: python:3.11-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install --no-cache-dir ".[pipelines,ml]" &&
+        python -m retail_demand.pipelines.submit_pipeline \
+          --project-id "$PROJECT_ID" \
+          --region "${_REGION}" \
+          --pipeline-root "${_PIPELINE_ROOT}" \
+          --bq-location "${_BQ_LOCATION}" \
+          --serving-container-image-uri "${_SERVING_IMAGE}"
+    waitFor: [push-pipeline-image-sha]
+
+options:
+  logging: CLOUD_LOGGING_ONLY

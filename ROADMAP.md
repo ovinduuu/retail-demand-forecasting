@@ -34,8 +34,16 @@
       Registry, and a `serving_container_image_uri` from Phase 6. Wiring
       `train.py`'s run log to Vertex AI Experiments is deferred alongside
       that (needs the same real GCP credentials).
-- [ ] **Phase 5 — CI/CD**: extend `.github/workflows` with a Cloud Build
-      trigger that runs the Vertex AI pipeline on merge to `master`.
+- [x] **Phase 5 — CI/CD**: `cloudbuild.yaml` builds + pushes the pipeline
+      image, then runs `src/retail_demand/pipelines/submit_pipeline.py`
+      (compiles the pipeline and submits it as a Vertex AI Pipeline Job,
+      defaulting to the last 2 years of data if no date range is given);
+      `infra/terraform` provisions a `google_cloudbuild_trigger` firing on
+      push to `master` (needs the one-time manual GitHub App connection
+      documented in `infra/terraform/README.md`). GitHub Actions stays
+      scoped to lint/test on every PR — Cloud Build, triggered directly by
+      GCP's GitHub connection, owns build+deploy, matching the CI/CB split
+      in `docs/architecture.md`.
 - [ ] **Phase 6 — Serving**: scheduled Vertex AI batch prediction job
       (primary path); optional FastAPI app on Cloud Run for live requests.
 - [ ] **Phase 7 — Monitoring**: Vertex AI Model Monitoring (skew/drift),

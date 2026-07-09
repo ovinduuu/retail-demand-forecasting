@@ -46,3 +46,15 @@ variable "artifact_repo_name" {
   type        = string
   default     = "retail-demand"
 }
+
+variable "github_owner" {
+  description = "GitHub owner/org that hosts this repo, for the Cloud Build trigger."
+  type        = string
+  default     = "ovinduuu"
+}
+
+variable "github_repo_name" {
+  description = "GitHub repository name, for the Cloud Build trigger."
+  type        = string
+  default     = "retail-demand-forecasting"
+}
