@@ -1,5 +1,12 @@
 # Roadmap
 
+**Status: all 8 phases implemented and merged.** Every phase below is real,
+tested code — 50 passing tests, no cloud credentials required to run them.
+What's *not* done is deploying any of it to an actual GCP project: that
+needs a Kaggle account and GCP billing that only you can provide (see
+"Prerequisites" below). Everywhere a phase says "written, not applied" or
+similar, that's the reason.
+
 - [x] **Phase 0 — Scaffold**: repo structure, `uv`/`pyproject.toml` dependency
       management, `ruff` lint, GitHub Actions CI, git init.
 - [x] **Phase 1 — Data engineering**: M5 download script (`download_m5.py`),
@@ -31,9 +38,10 @@
       `Dockerfile` bundles the package + dbt for the components to run in.
       Not yet submitted to a real Vertex AI Pipelines run — needs
       `infra/terraform` applied, the image built + pushed to Artifact
-      Registry, and a `serving_container_image_uri` from Phase 6. Wiring
-      `train.py`'s run log to Vertex AI Experiments is deferred alongside
-      that (needs the same real GCP credentials).
+      Registry, and a `serving_container_image_uri` from Phase 6. (Run
+      tracking ended up as BigQuery's `model_runs` table, added in Phase 7,
+      rather than the originally-planned Vertex AI Experiments — see that
+      phase's note below.)
 - [x] **Phase 5 — CI/CD**: `cloudbuild.yaml` builds + pushes the pipeline
       image, then runs `src/retail_demand/pipelines/submit_pipeline.py`
       (compiles the pipeline and submits it as a Vertex AI Pipeline Job,
@@ -74,9 +82,34 @@
       one container-based pattern reused everywhere), added to
       `infra/terraform`. Dashboarding is a documented manual Looker Studio
       step (`docs/monitoring.md`), not something built by this repo.
-- [ ] **Phase 8 — Polish**: cost writeup, final README pass, demo screenshots.
+- [x] **Phase 8 — Polish**: `docs/costs.md` consolidates the per-service cost
+      breakdown that used to be scattered across `infra/terraform/README.md`
+      (which now just links to it); `README.md` rewritten to describe the
+      finished project (accurate stack table — no more claiming Vertex AI
+      Batch Prediction/Model Monitoring/Experiments where the real
+      implementation is a cheaper custom substitute); a couple of stale
+      docs references from earlier phases fixed along the way. No demo
+      screenshots: nothing has been deployed to a real GCP project from this
+      environment, so there's nothing real to screenshot — the closest thing
+      to visual evidence is `notebooks/01_eda.ipynb`, which is committed
+      with its actual rendered plots from a real (local, synthetic-data)
+      execution.
 
-## Prerequisites to unblock later phases
+## Deploying this for real
+
+Everything above is implemented and locally verified wherever that's
+possible without cloud credentials. To actually run it against GCP:
+
+1. Get a Kaggle account + API token (`data/README.md`) and a GCP project
+   with billing enabled.
+2. Follow `README.md`'s "Getting started" steps 2-4: apply the base
+   Terraform infra, load data + run dbt, then build/push both Docker images
+   and re-apply Terraform to bring up the Cloud Run services/jobs and
+   Cloud Scheduler triggers.
+3. Push to `master` (or run `gcloud builds submit --config cloudbuild.yaml`
+   manually) to get the first real training pipeline run.
+
+## Prerequisites to unblock real deployment
 
 - Kaggle account + API token (`data/README.md`) — needed to actually pull M5.
 - GCP project with billing enabled + `gcloud`/`terraform` CLIs installed

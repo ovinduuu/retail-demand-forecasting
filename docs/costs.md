@@ -1,0 +1,48 @@
+# Cost notes
+
+Every GCP resource this project provisions, and why it stays cheap. Nothing
+here has actually been deployed (see `ROADMAP.md`), so these are informed
+estimates based on each service's published free tier and pricing, not
+measured spend.
+
+| Service | What it's used for | Why it's cheap |
+|---|---|---|
+| BigQuery | raw/staging/marts datasets, monitoring tables | 10 GB storage + 1 TB query/month free; a subset-of-M5-sized dataset stays well under that |
+| GCS | raw data landing bucket, Vertex pipeline artifacts | 30-day lifecycle rule auto-deletes raw objects (BigQuery is the durable copy); pipeline artifacts are small (a CSV + a LightGBM model file per run) |
+| Artifact Registry | pipeline + serving Docker images | storage-only cost for a couple of images, no compute |
+| Cloud Build | builds + pushes the pipeline image, submits training runs | 120 free build-minutes/day; one push-triggered build for a project this size fits easily |
+| Vertex AI Pipelines | orchestrates dbt transform -> train -> register | pay-per-run, no idle orchestrator (this is *why* Cloud Composer was ruled out — see `docs/architecture.md`) |
+| Vertex AI Model Registry | versioned model metadata | free; you pay for the GCS storage of the artifact itself, which is tiny (a LightGBM model is a few hundred KB - low single-digit MB) |
+| Cloud Run (serving service) | optional live-request demo | `min_instance_count = 0` — scales to zero, billed only per request handled; no public IAM binding by default, so idle = zero cost and zero exposure |
+| Cloud Run Jobs (batch-predict, drift-check, retrain-trigger) | scheduled batch scoring, drift check, retrain decision | billed only for actual run seconds — no standing container between runs |
+| Cloud Scheduler | triggers the three Cloud Run Jobs daily | free tier covers 3 jobs/account/month; this project uses exactly 3 |
+
+## What's deliberately *not* used, and why
+
+- **Cloud Composer** — an always-on orchestrator would cost real money 24/7
+  for something Vertex AI Pipelines already does per-run. See
+  `docs/architecture.md`.
+- **Pub/Sub + Dataflow** — would be the "correct" way to simulate a
+  streaming feed, but real cost/complexity for a project whose actual data
+  source (M5) is a frozen historical dataset anyway. Replaced with a
+  synthetic daily-feed generator (`data_engineering/synthetic_daily_feed.py`).
+- **A standing Vertex AI Endpoint** — the primary serving path is a
+  scheduled batch job instead (matches real retail replenishment cadence,
+  and avoids paying for an always-on endpoint that would sit idle almost
+  all the time).
+- **Vertex AI Model Monitoring** — needs a live Endpoint to watch; this
+  project doesn't have one. Replaced with custom PSI-based drift checks
+  logged to BigQuery (`docs/monitoring.md`).
+- **Cloud Functions** — Cloud Run Jobs cover the same "run a scheduled
+  script" need using the same container images/tooling already built for
+  the pipeline, rather than introducing a second packaging format.
+
+## Rough monthly estimate
+
+For light, personal-portfolio-scale usage (a handful of pipeline runs and
+daily scheduled jobs, not production traffic): comfortably free-tier, likely
+**$0–2/month**, mostly from GCS storage of pipeline artifacts and models
+past what the always-free tier covers. Real cost only shows up if you
+increase pipeline run frequency substantially, materialize much larger
+BigQuery tables repeatedly, or make the Cloud Run serving demo public and
+it receives meaningful traffic.
