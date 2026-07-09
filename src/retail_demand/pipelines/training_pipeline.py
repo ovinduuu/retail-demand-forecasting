@@ -48,6 +48,7 @@ def training_pipeline(
 
     train_task = train_model(
         training_data=extract_task.outputs["training_data"],
+        project_id=project_id,
         valid_days=valid_days,
     )
 

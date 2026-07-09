@@ -60,9 +60,20 @@
       trained a real model, ran the FastAPI server, and hit `/health` and
       `/predict` over actual HTTP. Cloud Run/Scheduler resources are written
       but not applied — same as everything else needing real GCP credentials.
-- [ ] **Phase 7 — Monitoring**: Vertex AI Model Monitoring (skew/drift),
-      metrics logged to BigQuery, Cloud Scheduler + Cloud Function retraining
-      trigger, small dashboard.
+- [x] **Phase 7 — Monitoring**: `src/retail_demand/monitoring/drift_check.py`
+      computes Population Stability Index per numeric feature (reference vs.
+      current window) and logs to BigQuery's `model_monitoring` table — a
+      custom substitute for Vertex AI Model Monitoring, which needs a live
+      Endpoint this batch-first project doesn't have (see
+      `docs/monitoring.md`). `retrain_trigger.py` reads that plus the latest
+      training metrics (now also logged to BigQuery's `model_runs` table by
+      the pipeline's `train_model` component — a gap found and fixed while
+      building this phase, since `train.py`'s local JSONL log isn't reachable
+      from a separate scheduled job) and submits a new pipeline run if either
+      regressed. Both run as scheduled Cloud Run Jobs (not Cloud Functions —
+      one container-based pattern reused everywhere), added to
+      `infra/terraform`. Dashboarding is a documented manual Looker Studio
+      step (`docs/monitoring.md`), not something built by this repo.
 - [ ] **Phase 8 — Polish**: cost writeup, final README pass, demo screenshots.
 
 ## Prerequisites to unblock later phases
