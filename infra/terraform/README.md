@@ -82,28 +82,12 @@ terraform apply \
 
 ## Cost notes
 
-- BigQuery: 10 GB storage + 1 TB query/month are free; this dataset (a subset
-  of M5) stays well under that if you don't materialize every mart as a full
-  table repeatedly.
-- GCS: the raw bucket has a 30-day lifecycle rule to auto-delete objects,
-  since BigQuery is the durable copy once loaded.
-- Nothing here is always-on/billed-by-the-hour — no Cloud Composer, no
-  standing Vertex AI endpoint. Costs only occur when you run a job.
-- Cloud Build: 120 free build-minutes/day; building the pipeline image and
-  submitting a training run on each push to master stays well within that
-  for a project this size.
-- Cloud Run service (serving demo): `min_instance_count = 0`, so it scales
-  to zero and costs nothing when idle; you only pay for the seconds it
-  actually handles a request. No public IAM binding is created by default,
-  so it isn't reachable (or billable from stray traffic) until you
-  explicitly grant `roles/run.invoker` to `allUsers`.
-- Cloud Run Jobs (batch predict, drift check, retrain trigger): billed only
-  for each job's actual run time — a few seconds of BigQuery I/O plus a
-  small model predict/compute, not an idle container.
-- Cloud Scheduler: GCP's free tier covers 3 jobs per billing account per
-  month. This project uses exactly 3 (`batch-predict-daily`,
-  `drift-check-daily`, `retrain-trigger-daily`), so it fits without
-  incurring the small per-job charge that kicks in beyond the free 3 — worth
-  knowing if you add a 4th schedule later.
+See [`docs/costs.md`](../../docs/costs.md) for the full per-service
+breakdown. Two terraform-specific things worth knowing:
+
+- No public IAM binding is created for the serving Cloud Run service by
+  default (`min_instance_count = 0` too), so it isn't reachable — or
+  billable from stray traffic — until you explicitly grant
+  `roles/run.invoker` to `allUsers`.
 - Run `terraform destroy` when you're done experimenting to avoid any
   lingering storage cost.
