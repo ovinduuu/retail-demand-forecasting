@@ -2,14 +2,14 @@
 
 End-to-end retail demand forecasting project: data engineering, ML model
 training, an orchestrated training pipeline, CI/CD, batch and online
-serving, and monitoring — built on the
+serving, monitoring, and an interactive Next.js demo — built on the
 [M5 Forecasting - Accuracy](https://www.kaggle.com/competitions/m5-forecasting-accuracy)
 dataset plus a synthetic generator that simulates an ongoing daily feed.
 
-All 8 planned phases are implemented and merged (see [`ROADMAP.md`](ROADMAP.md)
-for the full history). Nothing has been deployed to a real GCP project yet —
-that's the one remaining step, and it needs your own Kaggle + GCP credentials
-(see "Getting started" below).
+All 9 phases are implemented and merged (see [`ROADMAP.md`](ROADMAP.md) for
+the full history). Nothing has been deployed to a real GCP project or
+Vercel yet — that's the one remaining step, and it needs your own Kaggle +
+GCP + Vercel accounts (see "Getting started" below).
 
 See [`docs/architecture.md`](docs/architecture.md) for the system diagram and
 design rationale, [`docs/monitoring.md`](docs/monitoring.md) for what's
@@ -27,6 +27,7 @@ cost breakdown.
 | Serving | Cloud Run Job (scheduled batch predict, primary path), FastAPI on Cloud Run (optional live-request demo) |
 | Monitoring | Custom PSI drift checks + training metrics, both logged to BigQuery; Cloud Run Jobs on Cloud Scheduler |
 | IaC | Terraform |
+| Frontend | Next.js (App Router) + TypeScript + Tailwind, deployed to Vercel |
 
 Where this differs from the "obvious" managed-service choice (e.g. no
 Vertex AI Batch Prediction, no Vertex AI Model Monitoring, no Cloud
@@ -46,9 +47,10 @@ src/retail_demand/
 dbt/retail_demand/    # BigQuery transforms: staging -> marts
 infra/terraform/      # GCS, BigQuery, Artifact Registry, Cloud Build/Run/Scheduler
 docker/               # serving image (root Dockerfile is the pipeline image)
+frontend/             # Next.js forecast demo (see frontend/README.md)
 data/                 # local, gitignored: raw + generated CSVs
 notebooks/            # EDA (runs standalone on a local synthetic sample)
-tests/                # pytest unit tests (50 passing, no cloud creds needed)
+tests/                # pytest unit tests (54 passing, no cloud creds needed)
 ```
 
 ## Getting started
@@ -72,7 +74,10 @@ To work with real data and cloud resources, follow, in order:
    pipeline, `docker/serving.Dockerfile` for serving), then re-apply
    Terraform with `pipeline_image_uri`/`serving_image_uri` set to create the
    Cloud Run services/jobs and their schedulers.
+5. [`frontend/README.md`](frontend/README.md) — run the demo locally
+   against a local backend, or deploy it to Vercel pointed at the real
+   Cloud Run serving URL from step 4.
 
-None of steps 2–4 have been run against a real GCP project from this
-environment — they need your own Kaggle account and GCP billing, documented
-at each step.
+None of steps 2–5 have been run against a real GCP project or Vercel from
+this environment — they need your own Kaggle account, GCP billing, and
+Vercel account, documented at each step.

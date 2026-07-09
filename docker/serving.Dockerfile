@@ -1,8 +1,8 @@
 # Serving image for src/retail_demand/serving/app.py - the optional Cloud
 # Run live-request demo, and the serving_container_image_uri Phase 4's
 # register_model needs. Deliberately smaller than the root Dockerfile: no
-# dbt, no full gcp extra, just what app.py needs to load a model and serve
-# predictions.
+# dbt, just what app.py needs to load a model, query BigQuery for the
+# /series /history /forecast routes (see app.py), and serve predictions.
 #
 # Not yet built/pushed: needs infra/terraform's Artifact Registry repo, then
 # (from the repo root, since this needs pyproject.toml/src as build context):
@@ -17,7 +17,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src ./src
 
-RUN pip install --no-cache-dir ".[ml,serving]"
+RUN pip install --no-cache-dir ".[ml,serving,gcp]"
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080

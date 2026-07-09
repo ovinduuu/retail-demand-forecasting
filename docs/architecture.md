@@ -34,6 +34,12 @@ flowchart LR
         TRIG[Cloud Scheduler -> Cloud Run Job\nretrain trigger]
     end
 
+    subgraph Frontend
+        NEXTJS[Next.js on Vercel\ninteractive forecast demo]
+    end
+
+    NEXTJS -->|/series /history /forecast| API
+
     K --> GCS --> BQR
     S --> BQR
     BQR --> DBT --> BQM
@@ -73,6 +79,11 @@ flowchart LR
   (`fct_sales` + dimensions) are the single interface the ML feature step
   reads from, so model code never touches raw M5 quirks (wide date columns,
   per-state SNAP flags, etc.) directly.
+- **Frontend on Vercel, not GCP**: the Next.js demo is stateless and has no
+  reason to live on the same cloud as the ML backend — Vercel's free tier
+  and zero-config Next.js deploys are simply the better fit, and the two
+  sides only ever talk over a plain HTTP API (CORS-enabled), so the split
+  costs nothing in complexity.
 
 See `ROADMAP.md` for what's implemented vs. planned, and
 `infra/terraform/README.md` for cost notes on the GCP resources.

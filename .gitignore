@@ -9,11 +9,9 @@ dist/
 
 # Env / secrets
 .env
-*.json
-!package.json
-!.vscode/*.json
 kaggle.json
 service-account*.json
+*-key.json
 
 # Data
 data/raw/*
