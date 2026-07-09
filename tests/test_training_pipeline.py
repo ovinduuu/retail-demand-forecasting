@@ -39,3 +39,4 @@ def test_pipeline_graph_wires_expected_dependencies(tmp_path):
 def test_pipeline_requires_serving_container_image_uri_parameter():
     params = training_pipeline.pipeline_spec.root.input_definitions.parameters
     assert "serving_container_image_uri" in params
+    assert "serving_model_gcs_path" in params

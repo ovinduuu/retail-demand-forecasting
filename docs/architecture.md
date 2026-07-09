@@ -28,10 +28,10 @@ flowchart LR
     end
 
     subgraph Serving [Serving & Monitoring]
-        BATCH[Vertex AI Batch Prediction]
+        BATCH[Cloud Scheduler -> Cloud Run Job\nbatch_predict.py]
         API[FastAPI on Cloud Run - optional]
-        MON[Vertex AI Model Monitoring]
-        TRIG[Cloud Scheduler -> Cloud Function\nretrain trigger]
+        MON[Custom drift checks -> BigQuery]
+        TRIG[Cloud Scheduler -> Cloud Run Job\nretrain trigger]
     end
 
     K --> GCS --> BQR
@@ -57,8 +57,13 @@ flowchart LR
 - **Batch prediction as the primary serving path**: retail replenishment
   decisions are made on a daily/weekly cadence, not per-request — a scheduled
   batch job is both more realistic and far cheaper than an always-on
-  endpoint. A Cloud Run API is an optional add-on to demonstrate real-time
-  serving, not the main path.
+  endpoint. Implemented as a Cloud Run Job on a Cloud Scheduler trigger
+  rather than a literal Vertex AI Batch Prediction resource: a raw LightGBM
+  booster has no generic pre-built Vertex serving container, so a custom one
+  would be needed either way, and a plain scheduled job querying BigQuery
+  directly is simpler than wiring that container into Vertex's batch
+  prediction API for the same result. A Cloud Run API (same serving image)
+  is an optional add-on to demonstrate real-time serving, not the main path.
 - **Synthetic daily feed instead of Pub/Sub streaming**: M5 is a frozen
   historical dataset. Rather than standing up Pub/Sub + Dataflow (real cost,
   real complexity) just to simulate freshness, a scheduled script appends one

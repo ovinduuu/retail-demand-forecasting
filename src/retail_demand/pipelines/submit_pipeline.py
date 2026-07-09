@@ -52,6 +52,7 @@ def build_parameter_values(args: argparse.Namespace) -> dict:
         "start_date": start_date,
         "end_date": end_date,
         "serving_container_image_uri": args.serving_container_image_uri,
+        "serving_model_gcs_path": args.serving_model_gcs_path,
         "bq_location": args.bq_location,
         "valid_days": args.valid_days,
         "wrmsse_threshold": args.wrmsse_threshold,
@@ -107,6 +108,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--end-date", default=None, help="Defaults to today (UTC).")
     parser.add_argument("--serving-container-image-uri", required=True)
+    parser.add_argument(
+        "--serving-model-gcs-path",
+        required=True,
+        help="Fixed gs:// path batch_predict.py's Cloud Run Job reads the model from.",
+    )
     parser.add_argument("--bq-location", default="US")
     parser.add_argument("--valid-days", type=int, default=28)
     parser.add_argument("--wrmsse-threshold", type=float, default=DEFAULT_WRMSSE_THRESHOLD)

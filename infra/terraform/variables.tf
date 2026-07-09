@@ -58,3 +58,25 @@ variable "github_repo_name" {
   type        = string
   default     = "retail-demand-forecasting"
 }
+
+variable "pipeline_image_uri" {
+  description = <<-EOT
+    Pipeline image URI (see ../../Dockerfile) - used for KFP components and
+    the batch-predict Cloud Run Job. Leave as "" to apply the base infra
+    (bucket/BigQuery/Artifact Registry/Cloud Build trigger) before the image
+    exists; the batch-predict job and its scheduler are only created once
+    this is set to a real pushed image.
+  EOT
+  type    = string
+  default = ""
+}
+
+variable "serving_image_uri" {
+  description = <<-EOT
+    Serving image URI (see ../../docker/serving.Dockerfile) - used for the
+    optional Cloud Run live-request demo. Leave as "" until it's built and
+    pushed; the Cloud Run service is only created once this is set.
+  EOT
+  type    = string
+  default = ""
+}

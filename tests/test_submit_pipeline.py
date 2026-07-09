@@ -38,6 +38,7 @@ def _make_args(**overrides) -> argparse.Namespace:
         start_date=None,
         end_date="2024-06-01",
         serving_container_image_uri="us-central1-docker.pkg.dev/my-project/retail-demand/serving:latest",
+        serving_model_gcs_path="gs://my-project-retail-demand-raw/models/lightgbm_model.txt",
         bq_location="US",
         valid_days=28,
         wrmsse_threshold=1.0,
@@ -55,6 +56,7 @@ def test_build_parameter_values_includes_all_pipeline_params():
     assert params["end_date"] == "2024-06-01"
     assert params["start_date"] == "2022-06-02"
     assert params["serving_container_image_uri"].startswith("us-central1-docker.pkg.dev")
+    assert params["serving_model_gcs_path"] == "gs://my-project-retail-demand-raw/models/lightgbm_model.txt"
     assert params["valid_days"] == 28
     assert params["wrmsse_threshold"] == 1.0
 

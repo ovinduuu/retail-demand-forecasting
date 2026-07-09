@@ -17,10 +17,10 @@ jobs:
       - name: Install dependencies
         # "gcp"/"data"/"prophet" extras need real credentials or a heavy
         # native build (kaggle, prophet's cmdstan) not yet exercised by any
-        # test. "ml" (lightgbm/scikit-learn) and "pipelines" (kfp,
-        # google-cloud-aiplatform) are plain wheel installs needed by
-        # tests/test_train.py and tests/test_training_pipeline.py.
-        run: uv sync --extra dev --extra ml --extra pipelines
+        # test. "ml", "pipelines", and "serving" are plain wheel installs
+        # needed by tests/test_train.py, tests/test_training_pipeline.py,
+        # and tests/test_serving_app.py respectively.
+        run: uv sync --extra dev --extra ml --extra pipelines --extra serving
 
       - name: Lint
         run: uv run ruff check .

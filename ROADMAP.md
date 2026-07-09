@@ -44,8 +44,22 @@
       scoped to lint/test on every PR — Cloud Build, triggered directly by
       GCP's GitHub connection, owns build+deploy, matching the CI/CB split
       in `docs/architecture.md`.
-- [ ] **Phase 6 — Serving**: scheduled Vertex AI batch prediction job
-      (primary path); optional FastAPI app on Cloud Run for live requests.
+- [x] **Phase 6 — Serving**: `src/retail_demand/serving/batch_predict.py` is
+      the primary path — one-step-ahead scoring against `fct_sales`, run as
+      a scheduled Cloud Run Job (`infra/terraform`'s
+      `google_cloud_run_v2_job.batch_predict` + a daily Cloud Scheduler
+      trigger). `src/retail_demand/serving/app.py` is a FastAPI service
+      (Vertex predict/health protocol) for the optional Cloud Run
+      live-request demo, and doubles as the `serving_container_image_uri`
+      Phase 4's `register_model` needs — closing a gap found while building
+      this phase: Vertex's own model artifact path is versioned/dynamic, so
+      `register_model` now also copies each registered model to the fixed
+      GCS path `batch_predict.py` reads from. `docker/serving.Dockerfile`
+      builds the serving image (separate from the root `Dockerfile`, which
+      stays scoped to pipeline/dbt use). Verified locally end-to-end:
+      trained a real model, ran the FastAPI server, and hit `/health` and
+      `/predict` over actual HTTP. Cloud Run/Scheduler resources are written
+      but not applied — same as everything else needing real GCP credentials.
 - [ ] **Phase 7 — Monitoring**: Vertex AI Model Monitoring (skew/drift),
       metrics logged to BigQuery, Cloud Scheduler + Cloud Function retraining
       trigger, small dashboard.
