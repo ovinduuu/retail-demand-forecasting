@@ -23,6 +23,12 @@ ml = [
     "scikit-learn>=1.5",
     "prophet>=1.1",
 ]
+notebook = [
+    "matplotlib>=3.9",
+    "jupyter>=1.0",
+    "nbconvert>=7.16",
+    "ipykernel>=6.29",
+]
 dev = [
     "pytest>=8.2",
     "ruff>=0.5",
