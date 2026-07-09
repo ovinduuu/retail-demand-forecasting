@@ -103,18 +103,46 @@ def extract_training_data(
 def train_model(
     training_data: dsl.Input[dsl.Dataset],
     model: dsl.Output[dsl.Model],
+    project_id: str,
     valid_days: int = 28,
+    monitoring_dataset: str = "retail_demand_marts",
+    runs_table: str = "model_runs",
 ) -> NamedTuple("Metrics", [("wrmsse", float), ("mape", float), ("rmse", float)]):
-    """Feature-build + train a LightGBM model on the extracted data, saving it to `model`."""
+    """Feature-build + train a LightGBM model on the extracted data, saving it
+    to `model` and logging its metrics to BigQuery.
+
+    The BigQuery row is what retrain_trigger.py reads to find the latest
+    WRMSSE (train.py's local JSONL run log isn't reachable from a separate
+    scheduled job) and what a monitoring dashboard would plot over time.
+    """
+    import datetime as dt
     from collections import namedtuple
 
     import pandas as pd
+    from google.cloud import bigquery
 
     from retail_demand.models.train import run_training
 
     df = pd.read_csv(training_data.path, parse_dates=["date"])
     trained_model, metrics, _, _ = run_training(df, valid_days=valid_days)
     trained_model.save_model(model.path)
+
+    run_row = pd.DataFrame(
+        [
+            {
+                "trained_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                "wrmsse": metrics["wrmsse"],
+                "mape": metrics["mape"],
+                "rmse": metrics["rmse"],
+                "n_train_rows": metrics["n_train_rows"],
+                "n_valid_rows": metrics["n_valid_rows"],
+            }
+        ]
+    )
+    client = bigquery.Client(project=project_id)
+    table_id = f"{project_id}.{monitoring_dataset}.{runs_table}"
+    job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
+    client.load_table_from_dataframe(run_row, table_id, job_config=job_config).result()
 
     result = namedtuple("Metrics", ["wrmsse", "mape", "rmse"])
     return result(metrics["wrmsse"], metrics["mape"], metrics["rmse"])

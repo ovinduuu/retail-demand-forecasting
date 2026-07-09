@@ -5,17 +5,23 @@ Provisions the shared infra: raw GCS bucket, BigQuery datasets
 pipeline/training/CI jobs, and a Cloud Build trigger that builds the pipeline
 image and submits a Vertex AI training run on push to `master`.
 
-Two resource groups are conditional on an image already existing, so the
-base infra can be applied before any images are built:
+Several resource groups are conditional on an image already existing, so
+the base infra can be applied before any images are built:
 
 - `google_cloud_run_v2_service.serving` — the optional live-request demo,
   created only once `serving_image_uri` is set.
 - `google_cloud_run_v2_job.batch_predict` + its `google_cloud_scheduler_job`
   — the primary daily batch-scoring path, created only once
   `pipeline_image_uri` is set.
+- `google_cloud_run_v2_job.drift_check` + its scheduler — daily feature
+  drift check, logged to BigQuery, created once `pipeline_image_uri` is set.
+- `google_cloud_run_v2_job.retrain_trigger` + its scheduler — reads the
+  latest drift/metrics and submits a new training pipeline run if either
+  regressed, created once both `pipeline_image_uri` and `serving_image_uri`
+  are set (a triggered retrain needs a serving image to register against).
 
-The Cloud Scheduler retraining trigger (Phase 7) is added once that
-component exists.
+See `docs/monitoring.md` for what these two jobs log and how to build a
+dashboard on top of it.
 
 **Not yet applied** — this requires your own GCP project and billing, and
 hasn't been validated with `terraform validate`/`plan` either (the
@@ -63,8 +69,8 @@ gcloud builds submit --config cloudbuild.yaml --project <your-project-id>
 
 Once both images exist (built by the Cloud Build trigger above, or manually
 via `docker build`/`docker push`), re-apply with the image variables set to
-create the serving Cloud Run service and the batch-predict Cloud Run Job +
-scheduler:
+create the serving Cloud Run service, and the batch-predict, drift-check,
+and retrain-trigger Cloud Run Jobs + their schedulers:
 
 ```bash
 terraform apply \
@@ -91,9 +97,13 @@ terraform apply \
   actually handles a request. No public IAM binding is created by default,
   so it isn't reachable (or billable from stray traffic) until you
   explicitly grant `roles/run.invoker` to `allUsers`.
-- Cloud Run Job (batch predict) + Cloud Scheduler: billed only for the job's
-  actual daily run time (a few seconds of BigQuery I/O + a small model
-  predict), plus Cloud Scheduler's free tier (3 free jobs/month covers this
-  one job easily).
+- Cloud Run Jobs (batch predict, drift check, retrain trigger): billed only
+  for each job's actual run time — a few seconds of BigQuery I/O plus a
+  small model predict/compute, not an idle container.
+- Cloud Scheduler: GCP's free tier covers 3 jobs per billing account per
+  month. This project uses exactly 3 (`batch-predict-daily`,
+  `drift-check-daily`, `retrain-trigger-daily`), so it fits without
+  incurring the small per-job charge that kicks in beyond the free 3 — worth
+  knowing if you add a 4th schedule later.
 - Run `terraform destroy` when you're done experimenting to avoid any
   lingering storage cost.

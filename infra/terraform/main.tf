@@ -13,6 +13,14 @@ provider "google" {
   region  = var.region
 }
 
+locals {
+  # Fixed paths shared by the batch-predict, register_model, and
+  # retrain_trigger jobs - keeping these in one place avoids the literal
+  # gs:// strings drifting out of sync across resources.
+  serving_model_gcs_path = "gs://${var.raw_bucket_name}/models/lightgbm_model.txt"
+  pipeline_root          = "gs://${var.raw_bucket_name}/pipeline-root"
+}
+
 # --- Enable the APIs this project needs -------------------------------------
 resource "google_project_service" "apis" {
   for_each = toset([
@@ -194,7 +202,7 @@ resource "google_cloud_run_v2_job" "batch_predict" {
         command = ["python", "-m", "retail_demand.serving.batch_predict"]
         args = [
           "--project-id", var.project_id,
-          "--model-path", "gs://${var.raw_bucket_name}/models/lightgbm_model.txt",
+          "--model-path", local.serving_model_gcs_path,
         ]
       }
       max_retries = 1
@@ -226,6 +234,88 @@ resource "google_cloud_scheduler_job" "batch_predict_daily" {
 
   http_target {
     uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.batch_predict[0].name}:run"
+    http_method = "POST"
+    oauth_token {
+      service_account_email = google_service_account.scheduler[0].email
+    }
+  }
+}
+
+# --- Monitoring: scheduled drift check + retrain trigger --------------------
+# Both created only once var.pipeline_image_uri is set. retrain_trigger also
+# needs var.serving_image_uri, since a triggered retrain submits a full
+# training pipeline run that registers against that serving image.
+resource "google_cloud_run_v2_job" "drift_check" {
+  count    = var.pipeline_image_uri != "" ? 1 : 0
+  name     = "retail-demand-drift-check"
+  project  = var.project_id
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.pipeline.email
+      containers {
+        image   = var.pipeline_image_uri
+        command = ["python", "-m", "retail_demand.monitoring.drift_check"]
+        args    = ["--project-id", var.project_id]
+      }
+      max_retries = 1
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "drift_check_daily" {
+  count     = var.pipeline_image_uri != "" ? 1 : 0
+  name      = "retail-demand-drift-check-daily"
+  project   = var.project_id
+  region    = var.region
+  schedule  = "0 5 * * *" # 05:00 UTC daily, ahead of batch-predict/retrain-trigger
+  time_zone = "UTC"
+
+  http_target {
+    uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.drift_check[0].name}:run"
+    http_method = "POST"
+    oauth_token {
+      service_account_email = google_service_account.scheduler[0].email
+    }
+  }
+}
+
+resource "google_cloud_run_v2_job" "retrain_trigger" {
+  count    = var.pipeline_image_uri != "" && var.serving_image_uri != "" ? 1 : 0
+  name     = "retail-demand-retrain-trigger"
+  project  = var.project_id
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.pipeline.email
+      containers {
+        image   = var.pipeline_image_uri
+        command = ["python", "-m", "retail_demand.monitoring.retrain_trigger"]
+        args = [
+          "--project-id", var.project_id,
+          "--region", var.region,
+          "--pipeline-root", local.pipeline_root,
+          "--serving-container-image-uri", var.serving_image_uri,
+          "--serving-model-gcs-path", local.serving_model_gcs_path,
+        ]
+      }
+      max_retries = 1
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "retrain_trigger_daily" {
+  count     = var.pipeline_image_uri != "" && var.serving_image_uri != "" ? 1 : 0
+  name      = "retail-demand-retrain-trigger-daily"
+  project   = var.project_id
+  region    = var.region
+  schedule  = "30 6 * * *" # 06:30 UTC daily, after drift-check + batch-predict
+  time_zone = "UTC"
+
+  http_target {
+    uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.retrain_trigger[0].name}:run"
     http_method = "POST"
     oauth_token {
       service_account_email = google_service_account.scheduler[0].email
