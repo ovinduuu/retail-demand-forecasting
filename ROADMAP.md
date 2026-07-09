@@ -9,8 +9,11 @@
       `fct_sales`, `dim_item`, `dim_store`, `dim_calendar`), Terraform base
       infra (GCS raw bucket, BigQuery datasets, service account, Artifact
       Registry) — written, not yet applied to a real GCP project.
-- [ ] **Phase 2 — EDA & baselines**: `notebooks/01_eda.ipynb`; naive and
-      seasonal-naive baseline models in `src/retail_demand/models/baseline.py`.
+- [x] **Phase 2 — EDA & baselines**: naive and seasonal-naive baseline
+      models + MAPE/RMSE scoring in `src/retail_demand/models/baseline.py`
+      (unit tested); `notebooks/01_eda.ipynb` runs end-to-end on a local
+      synthetic sample (seasonality plots + baseline comparison) — swap in a
+      real `fct_sales` query once GCP/dbt are set up.
 - [ ] **Phase 3 — Feature engineering & training**: feature build on top of
       `fct_sales` (lags, rolling means, price/promo, calendar features);
       `train.py` (LightGBM) and `evaluate.py` (WRMSSE/MAPE); experiment
