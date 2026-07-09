@@ -3132,7 +3132,6 @@ gcp = [
 ]
 ml = [
     { name = "lightgbm" },
-    { name = "prophet" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
@@ -3142,6 +3141,9 @@ notebook = [
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "nbconvert" },
+]
+prophet = [
+    { name = "prophet" },
 ]
 
 [package.metadata]
@@ -3156,13 +3158,13 @@ requires-dist = [
     { name = "nbconvert", marker = "extra == 'notebook'", specifier = ">=7.16" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
-    { name = "prophet", marker = "extra == 'ml'", specifier = ">=1.1" },
+    { name = "prophet", marker = "extra == 'prophet'", specifier = ">=1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "scikit-learn", marker = "extra == 'ml'", specifier = ">=1.5" },
 ]
-provides-extras = ["gcp", "data", "ml", "notebook", "dev"]
+provides-extras = ["gcp", "data", "ml", "prophet", "notebook", "dev"]
 
 [[package]]
 name = "rfc3339-validator"

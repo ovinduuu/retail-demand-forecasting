@@ -2,9 +2,9 @@
 
 Phase 2 (done): naive / seasonal-naive baselines in baseline.py.
 
-Roadmap Phase 3: feature engineering over the dbt marts, a LightGBM training
-script with CLI args, evaluation (WRMSSE), and experiment tracking via
-Vertex AI Experiments.
-
-Planned modules: features.py, train.py, evaluate.py
+Phase 3 (done): feature engineering (features.py), a LightGBM training CLI
+(train.py), and WRMSSE/MAPE/RMSE evaluation (evaluate.py). Experiment
+tracking is local (a JSONL run log) for now — wiring it to Vertex AI
+Experiments needs real GCP credentials and is a Phase 4 TODO alongside the
+Vertex AI Pipeline itself.
 """
