@@ -22,11 +22,18 @@
       RMSSE (documented as a simplification of the full 12-level M5 WRMSSE).
       Experiment tracking is a local JSONL run log for now — Vertex AI
       Experiments needs real GCP credentials, deferred to Phase 4.
-- [ ] **Phase 4 — Pipeline**: Vertex AI Pipeline (KFP v2) in
-      `src/retail_demand/pipelines/training_pipeline.py` wiring
-      dbt transform -> feature build -> train -> evaluate -> conditional
-      register in Vertex AI Model Registry; wire `train.py`'s run log to
-      Vertex AI Experiments now that GCP credentials are in the loop.
+- [x] **Phase 4 — Pipeline**: Vertex AI Pipeline (KFP v2) —
+      `src/retail_demand/pipelines/components.py` (dbt transform, extract
+      training data from `fct_sales`, train, conditionally register) wired
+      together in `training_pipeline.py`: dbt -> extract -> train ->
+      `dsl.If(wrmsse < threshold)` -> register. Compiles locally to a valid
+      pipeline spec (unit tested, no GCP credentials needed for that); a
+      `Dockerfile` bundles the package + dbt for the components to run in.
+      Not yet submitted to a real Vertex AI Pipelines run — needs
+      `infra/terraform` applied, the image built + pushed to Artifact
+      Registry, and a `serving_container_image_uri` from Phase 6. Wiring
+      `train.py`'s run log to Vertex AI Experiments is deferred alongside
+      that (needs the same real GCP credentials).
 - [ ] **Phase 5 — CI/CD**: extend `.github/workflows` with a Cloud Build
       trigger that runs the Vertex AI pipeline on merge to `master`.
 - [ ] **Phase 6 — Serving**: scheduled Vertex AI batch prediction job

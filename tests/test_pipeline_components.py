@@ -1,0 +1,19 @@
+import pytest
+
+pytest.importorskip("kfp")
+
+from retail_demand.pipelines.components import build_extract_query  # noqa: E402
+
+
+def test_build_extract_query_includes_table_and_date_range():
+    query = build_extract_query(
+        dataset="retail_demand_marts",
+        table="fct_sales",
+        start_date="2024-01-01",
+        end_date="2024-03-01",
+    )
+
+    assert "`retail_demand_marts.fct_sales`" in query
+    assert "'2024-01-01'" in query
+    assert "'2024-03-01'" in query
+    assert "ORDER BY store_id, item_id, date" in query

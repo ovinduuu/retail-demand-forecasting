@@ -27,6 +27,10 @@ ml = [
 prophet = [
     "prophet>=1.1",
 ]
+pipelines = [
+    "kfp>=2.7",
+    "google-cloud-aiplatform>=1.60",
+]
 notebook = [
     "matplotlib>=3.9",
     "jupyter>=1.0",
