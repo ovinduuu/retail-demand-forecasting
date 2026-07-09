@@ -107,3 +107,43 @@ resource "google_project_iam_member" "pipeline_vertex" {
   role    = "roles/aiplatform.user"
   member  = "serviceAccount:${google_service_account.pipeline.email}"
 }
+
+resource "google_project_iam_member" "pipeline_artifact_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.pipeline.email}"
+}
+
+resource "google_project_iam_member" "pipeline_logging_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.pipeline.email}"
+}
+
+# --- CI/CD: build the pipeline image and submit a training run on push ------
+# Requires a one-time manual step before this trigger can be created: install
+# the "Google Cloud Build" GitHub App on this repo (Cloud Build console ->
+# Triggers -> Connect Repository). See infra/terraform/README.md.
+resource "google_cloudbuild_trigger" "training_pipeline" {
+  project     = var.project_id
+  name        = "retail-demand-training-pipeline"
+  description = "Build the pipeline image and submit a Vertex AI training run on push to master."
+  filename    = "cloudbuild.yaml"
+
+  github {
+    owner = var.github_owner
+    name  = var.github_repo_name
+    push {
+      branch = "^master$"
+    }
+  }
+
+  included_files = [
+    "src/retail_demand/**",
+    "dbt/**",
+    "Dockerfile",
+    "cloudbuild.yaml",
+  ]
+
+  service_account = google_service_account.pipeline.id
+}

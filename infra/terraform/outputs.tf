@@ -21,3 +21,7 @@ output "pipeline_service_account_email" {
 output "artifact_registry_repo" {
   value = google_artifact_registry_repository.images.name
 }
+
+output "cloudbuild_trigger_id" {
+  value = google_cloudbuild_trigger.training_pipeline.trigger_id
+}
