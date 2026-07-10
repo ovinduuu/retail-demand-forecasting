@@ -132,8 +132,8 @@ Vercel:
 
 ## Prerequisites to unblock real deployment
 
-- Kaggle account + API token (`data/README.md`) — needed to actually pull M5.
+- Kaggle account + API token (`data/README.md`) — needed to actually pull M5
 - GCP project with billing enabled + `gcloud`/`terraform` CLIs installed
   locally — needed to apply `infra/terraform` and run anything against
-  BigQuery/Vertex AI.
-- Vercel account (free tier is fine) — needed to deploy `frontend/`.
+  BigQuery/Vertex AI
+- Vercel account (free tier is fine) — needed to deploy `frontend/`
