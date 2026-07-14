@@ -21,6 +21,7 @@ import pandas as pd
 from retail_demand.pipelines.submit_pipeline import (
     DEFAULT_WRMSSE_THRESHOLD,
     build_parameter_values,
+    check_pipeline_image_is_real,
     compile_pipeline,
     submit_pipeline_job,
 )
@@ -128,6 +129,7 @@ def main() -> None:
         print("No retrain trigger: no significant drift and no metric regression.")
         return
 
+    check_pipeline_image_is_real()
     compiled_path = compile_pipeline(args.compiled_path)
     parameter_values = build_parameter_values(args)
     job = submit_pipeline_job(

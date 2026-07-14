@@ -4,8 +4,11 @@ import pytest
 
 pytest.importorskip("kfp")
 
+from retail_demand.pipelines import components  # noqa: E402
 from retail_demand.pipelines.submit_pipeline import (  # noqa: E402
+    PlaceholderImageError,
     build_parameter_values,
+    check_pipeline_image_is_real,
     compile_pipeline,
     default_pipeline_service_account,
     resolve_date_range,
@@ -71,6 +74,21 @@ def test_default_pipeline_service_account_matches_terraform_naming():
         default_pipeline_service_account("my-project", sa_name="custom-sa")
         == "custom-sa@my-project.iam.gserviceaccount.com"
     )
+
+
+def test_check_pipeline_image_is_real_rejects_placeholder(monkeypatch):
+    monkeypatch.setattr(components, "PIPELINE_IMAGE", components.PLACEHOLDER_PIPELINE_IMAGE)
+    with pytest.raises(PlaceholderImageError):
+        check_pipeline_image_is_real()
+
+
+def test_check_pipeline_image_is_real_accepts_real_image(monkeypatch):
+    monkeypatch.setattr(
+        components,
+        "PIPELINE_IMAGE",
+        "us-central1-docker.pkg.dev/my-project/retail-demand/pipeline:latest",
+    )
+    check_pipeline_image_is_real()  # should not raise
 
 
 def test_compile_pipeline_writes_valid_spec(tmp_path):
