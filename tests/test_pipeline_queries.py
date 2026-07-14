@@ -1,8 +1,4 @@
-import pytest
-
-pytest.importorskip("kfp")
-
-from retail_demand.pipelines.components import build_extract_query  # noqa: E402
+from retail_demand.pipelines.queries import build_extract_query
 
 
 def test_build_extract_query_includes_table_and_date_range():
