@@ -170,10 +170,9 @@ resource "google_cloudbuild_trigger" "training_pipeline" {
 
 # --- Optional: live-request serving API (Cloud Run service) ----------------
 # Created only once var.serving_image_uri is set to a real, pushed image -
-# the base infra above can be applied without it. No public IAM binding is
-# created, so the service requires an authenticated caller by default; to
-# demo it publicly, add a google_cloud_run_v2_service_iam_member granting
-# roles/run.invoker to "allUsers".
+# the base infra above can be applied without it. Public (allUsers) invoker
+# access is granted below so the Vercel frontend can call it directly from
+# visitors' browsers without a server-side auth proxy.
 resource "google_cloud_run_v2_service" "serving" {
   depends_on = [google_project_service.apis]
 
@@ -215,6 +214,18 @@ resource "google_cloud_run_v2_service" "serving" {
       }
     }
   }
+}
+
+# Public read access: the serving API is read-only forecast data with no
+# PII, and the Vercel frontend calls it directly from visitors' browsers
+# (no server-side proxy that could hold a service-account token instead).
+resource "google_cloud_run_v2_service_iam_member" "serving_public" {
+  count    = var.serving_image_uri != "" ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.serving[0].name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
 # --- Batch prediction: scheduled Cloud Run Job + Cloud Scheduler trigger ---

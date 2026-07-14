@@ -85,9 +85,9 @@ terraform apply \
 See [`docs/costs.md`](../../docs/costs.md) for the full per-service
 breakdown. Two terraform-specific things worth knowing:
 
-- No public IAM binding is created for the serving Cloud Run service by
-  default (`min_instance_count = 0` too), so it isn't reachable — or
-  billable from stray traffic — until you explicitly grant
-  `roles/run.invoker` to `allUsers`.
+- The serving Cloud Run service grants `roles/run.invoker` to `allUsers`
+  once `serving_image_uri` is set (so the Vercel frontend can call it
+  directly from visitors' browsers) but keeps `min_instance_count = 0`, so
+  idle traffic still costs nothing.
 - Run `terraform destroy` when you're done experimenting to avoid any
   lingering storage cost.
