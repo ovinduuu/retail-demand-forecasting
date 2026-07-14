@@ -4144,6 +4144,7 @@ dev = [
     { name = "ruff" },
 ]
 gcp = [
+    { name = "db-dtypes" },
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-storage" },
 ]
@@ -4174,6 +4175,7 @@ serving = [
 
 [package.metadata]
 requires-dist = [
+    { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2" },
     { name = "dbt-bigquery", marker = "extra == 'dbt'", specifier = ">=1.11.3" },
     { name = "fastapi", marker = "extra == 'serving'", specifier = ">=0.111" },
     { name = "google-cloud-aiplatform", marker = "extra == 'pipelines'", specifier = ">=1.60" },
