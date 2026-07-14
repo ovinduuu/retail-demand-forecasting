@@ -21,7 +21,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY dbt ./dbt
 
