@@ -21,10 +21,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# libgomp1: LightGBM's compiled library dlopen()s libgomp.so.1 (OpenMP) at
+# import time - python:3.11-slim doesn't include it, so `import lightgbm`
+# fails with "libgomp.so.1: cannot open shared object file" without this.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY dbt ./dbt
 
-RUN pip install --no-cache-dir ".[gcp,ml,pipelines]" dbt-bigquery
+RUN pip install --no-cache-dir ".[gcp,ml,pipelines,dbt]"
 
 ENV PYTHONUNBUFFERED=1

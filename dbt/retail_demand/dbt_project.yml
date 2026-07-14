@@ -12,7 +12,7 @@ models:
   retail_demand:
     staging:
       +materialized: view
-      +schema: staging
+      +schema: retail_demand_staging
     marts:
       +materialized: table
-      +schema: marts
+      +schema: retail_demand_marts
