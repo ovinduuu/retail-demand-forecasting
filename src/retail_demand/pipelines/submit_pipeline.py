@@ -68,6 +68,13 @@ def compile_pipeline(out_path: str) -> str:
     return out_path
 
 
+def default_pipeline_service_account(
+    project_id: str, sa_name: str = "retail-demand-pipeline"
+) -> str:
+    """The pipeline runner service account infra/terraform provisions (training_sa_name)."""
+    return f"{sa_name}@{project_id}.iam.gserviceaccount.com"
+
+
 def submit_pipeline_job(
     compiled_path: str,
     parameter_values: dict,
@@ -76,7 +83,17 @@ def submit_pipeline_job(
     pipeline_root: str,
     job_id: str | None = None,
     enable_caching: bool = True,
+    service_account: str | None = None,
 ):
+    """Submit the compiled pipeline as a Vertex AI Pipeline Job.
+
+    Without an explicit service_account, Vertex runs the pipeline's steps as
+    the project's default Compute Engine service account - not the
+    purpose-built retail-demand-pipeline SA infra/terraform grants the
+    specific BigQuery/Storage/Vertex/Artifact Registry roles the pipeline
+    components actually need. Defaults to that SA by its known naming
+    convention if not given.
+    """
     from google.cloud import aiplatform
 
     aiplatform.init(project=project_id, location=region)
@@ -88,7 +105,7 @@ def submit_pipeline_job(
         job_id=job_id,
         enable_caching=enable_caching,
     )
-    job.submit()
+    job.submit(service_account=service_account or default_pipeline_service_account(project_id))
     return job
 
 
@@ -120,6 +137,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--compiled-path", default="artifacts/training_pipeline.yaml")
     parser.add_argument("--job-id", default=None)
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument(
+        "--service-account",
+        default=None,
+        help="Defaults to retail-demand-pipeline@<project-id>.iam.gserviceaccount.com.",
+    )
     return parser.parse_args()
 
 
@@ -136,6 +158,7 @@ def main() -> None:
         pipeline_root=args.pipeline_root,
         job_id=args.job_id,
         enable_caching=not args.no_cache,
+        service_account=args.service_account,
     )
     print(f"Submitted pipeline job: {job.resource_name}")
 

@@ -7,6 +7,7 @@ pytest.importorskip("kfp")
 from retail_demand.pipelines.submit_pipeline import (  # noqa: E402
     build_parameter_values,
     compile_pipeline,
+    default_pipeline_service_account,
     resolve_date_range,
 )
 
@@ -59,6 +60,17 @@ def test_build_parameter_values_includes_all_pipeline_params():
     assert params["serving_model_gcs_path"] == "gs://my-project-retail-demand-raw/models/lightgbm_model.txt"
     assert params["valid_days"] == 28
     assert params["wrmsse_threshold"] == 1.0
+
+
+def test_default_pipeline_service_account_matches_terraform_naming():
+    assert (
+        default_pipeline_service_account("my-project")
+        == "retail-demand-pipeline@my-project.iam.gserviceaccount.com"
+    )
+    assert (
+        default_pipeline_service_account("my-project", sa_name="custom-sa")
+        == "custom-sa@my-project.iam.gserviceaccount.com"
+    )
 
 
 def test_compile_pipeline_writes_valid_spec(tmp_path):

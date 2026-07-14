@@ -106,6 +106,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", default=None)
     parser.add_argument("--end-date", default=None)
     parser.add_argument("--compiled-path", default="artifacts/training_pipeline.yaml")
+    parser.add_argument(
+        "--service-account",
+        default=None,
+        help="Defaults to retail-demand-pipeline@<project-id>.iam.gserviceaccount.com.",
+    )
     return parser.parse_args()
 
 
@@ -131,6 +136,7 @@ def main() -> None:
         project_id=args.project_id,
         region=args.region,
         pipeline_root=args.pipeline_root,
+        service_account=args.service_account,
     )
     print(f"Retrain triggered: {job.resource_name}")
 
