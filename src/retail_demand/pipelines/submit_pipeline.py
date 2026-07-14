@@ -17,12 +17,28 @@ import argparse
 import datetime as dt
 from pathlib import Path
 
+from retail_demand.pipelines import components
 from retail_demand.pipelines.training_pipeline import (
     DEFAULT_WRMSSE_THRESHOLD,
     training_pipeline,
 )
 
 DEFAULT_LOOKBACK_DAYS = 730  # ~2 years of history to train on, by default
+
+
+class PlaceholderImageError(RuntimeError):
+    """Raised when compiling for a real submission with the placeholder base image.
+
+    components.PIPELINE_IMAGE is read from the PIPELINE_IMAGE env var at
+    compile time (baked into the compiled pipeline spec) and defaults to a
+    plain public Python image so the pipeline can still be *compiled*
+    locally/in tests without a real Artifact Registry image existing yet.
+    Submitting with that placeholder still "succeeds" but every step queues
+    forever trying to run dbt/Python code inside an image that has none of
+    it installed - this was found the hard way running the first real
+    pipeline job, where it silently used the wrong image because
+    PIPELINE_IMAGE wasn't set before submit_pipeline.py ran.
+    """
 
 
 def resolve_date_range(
@@ -145,8 +161,24 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def check_pipeline_image_is_real() -> None:
+    """Refuse to submit a real job compiled against the placeholder image.
+
+    Call before submitting (not before every compile - tests/local
+    `make compile-pipeline` runs are fine with the placeholder).
+    """
+    if components.PIPELINE_IMAGE == components.PLACEHOLDER_PIPELINE_IMAGE:
+        raise PlaceholderImageError(
+            "PIPELINE_IMAGE is not set (or is still the placeholder "
+            f"'{components.PLACEHOLDER_PIPELINE_IMAGE}'). Set it to the real "
+            "Artifact Registry image before submitting, e.g.:\n"
+            "  PIPELINE_IMAGE=us-central1-docker.pkg.dev/<project>/retail-demand/pipeline:latest"
+        )
+
+
 def main() -> None:
     args = _parse_args()
+    check_pipeline_image_is_real()
     compiled_path = compile_pipeline(args.compiled_path)
     parameter_values = build_parameter_values(args)
 

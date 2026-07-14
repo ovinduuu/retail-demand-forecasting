@@ -16,7 +16,8 @@ from typing import NamedTuple
 
 from kfp import dsl
 
-PIPELINE_IMAGE = os.environ.get("PIPELINE_IMAGE", "python:3.11-slim")
+PLACEHOLDER_PIPELINE_IMAGE = "python:3.11-slim"
+PIPELINE_IMAGE = os.environ.get("PIPELINE_IMAGE", PLACEHOLDER_PIPELINE_IMAGE)
 
 
 def build_extract_query(dataset: str, table: str, start_date: str, end_date: str) -> str:
