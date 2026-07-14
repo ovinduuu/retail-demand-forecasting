@@ -20,16 +20,6 @@ PLACEHOLDER_PIPELINE_IMAGE = "python:3.11-slim"
 PIPELINE_IMAGE = os.environ.get("PIPELINE_IMAGE", PLACEHOLDER_PIPELINE_IMAGE)
 
 
-def build_extract_query(dataset: str, table: str, start_date: str, end_date: str) -> str:
-    """SQL to pull one date range of the fct_sales mart for training."""
-    return (
-        "SELECT date, store_id, item_id, sales, sell_price, snap_flag, event_type_1 "
-        f"FROM `{dataset}.{table}` "
-        f"WHERE date BETWEEN '{start_date}' AND '{end_date}' "
-        "ORDER BY store_id, item_id, date"
-    )
-
-
 @dsl.component(base_image=PIPELINE_IMAGE)
 def run_dbt_transform(project_id: str, bq_location: str = "US") -> str:
     """Run the dbt project (staging -> marts) against BigQuery.
@@ -92,7 +82,7 @@ def extract_training_data(
     """Query fct_sales for [start_date, end_date] and write it out as CSV."""
     from google.cloud import bigquery
 
-    from retail_demand.pipelines.components import build_extract_query
+    from retail_demand.pipelines.queries import build_extract_query
 
     client = bigquery.Client(project=project_id)
     query = build_extract_query(dataset, table, start_date, end_date)
