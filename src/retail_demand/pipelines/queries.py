@@ -15,8 +15,11 @@ Vertex AI.
 
 def build_extract_query(dataset: str, table: str, start_date: str, end_date: str) -> str:
     """SQL to pull one date range of the fct_sales mart for training."""
+    from retail_demand.models.features import RAW_SOURCE_COLUMNS
+
+    columns = ", ".join(RAW_SOURCE_COLUMNS)
     return (
-        "SELECT date, store_id, item_id, sales, sell_price, snap_flag, event_type_1 "
+        f"SELECT {columns} "
         f"FROM `{dataset}.{table}` "
         f"WHERE date BETWEEN '{start_date}' AND '{end_date}' "
         "ORDER BY store_id, item_id, date"
