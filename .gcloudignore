@@ -1,3 +1,7 @@
+.gcloudignore
+.git/
+.gitignore
+
 # Python
 __pycache__/
 *.py[cod]
@@ -7,14 +11,10 @@ __pycache__/
 .uv/
 build/
 dist/
+.pytest_cache/
+.ruff_cache/
 
-# Env / secrets
-.env
-kaggle.json
-service-account*.json
-*-key.json
-
-# Data
+# Data (large, not needed in the build context images)
 data/raw/*
 data/external/*
 !data/raw/.gitkeep
@@ -24,20 +24,21 @@ data/external/*
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.*
-infra/terraform/.terraform.lock.hcl
-infra/terraform/*.tfvars
 
 # dbt
 dbt/retail_demand/target/
 dbt/retail_demand/dbt_packages/
 dbt/retail_demand/logs/
-profiles.yml
 
 # Notebooks
 .ipynb_checkpoints/
 
-# Local training outputs (models, run logs) — not committed
+# Local training outputs
 artifacts/
+
+# Frontend (not needed for the Python-based pipeline/serving images)
+frontend/node_modules/
+frontend/.next/
 
 # OS / editor
 .DS_Store
