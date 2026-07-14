@@ -40,6 +40,23 @@ dbt run
 dbt test
 ```
 
-This has not been run yet in this repo — it requires a real GCP project and
-the raw tables to already be loaded (see `data/README.md` and
-`infra/terraform/README.md`).
+Verified end-to-end against a real GCP project: all 9 models build and all
+10 data tests pass, including `fct_sales` at its real size (~58M rows).
+
+### Python version note
+
+`dbt-bigquery`'s `mashumaro` dependency currently fails to import on Python
+3.14 (`UnserializableField` at import time — a real incompatibility with how
+3.14 handles typing introspection, not a config issue). If your default
+`uv`-managed Python is 3.14+, run dbt from a separate, older interpreter
+instead of fighting the main project venv:
+
+```bash
+uv venv --python 3.12 .venv-dbt
+uv pip install --python .venv-dbt dbt-bigquery
+.venv-dbt/Scripts/dbt.exe run   # Windows; .venv-dbt/bin/dbt on Linux/Mac
+```
+
+The rest of this project's dependencies (pandas, lightgbm, fastapi, kfp,
+...) work fine on 3.14 — this is specifically a `dbt-bigquery`/`mashumaro`
+issue, not a reason to downgrade the whole project's Python version.

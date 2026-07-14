@@ -39,6 +39,8 @@ resource "google_project_service" "apis" {
 
 # --- Raw data landing zone ---------------------------------------------------
 resource "google_storage_bucket" "raw" {
+  depends_on = [google_project_service.apis]
+
   name                        = var.raw_bucket_name
   location                    = var.region
   project                     = var.project_id
@@ -60,18 +62,24 @@ resource "google_storage_bucket" "raw" {
 
 # --- BigQuery datasets: raw -> staging -> marts ------------------------------
 resource "google_bigquery_dataset" "raw" {
+  depends_on = [google_project_service.apis]
+
   dataset_id = var.bq_dataset_raw
   project    = var.project_id
   location   = var.bq_location
 }
 
 resource "google_bigquery_dataset" "staging" {
+  depends_on = [google_project_service.apis]
+
   dataset_id = var.bq_dataset_staging
   project    = var.project_id
   location   = var.bq_location
 }
 
 resource "google_bigquery_dataset" "marts" {
+  depends_on = [google_project_service.apis]
+
   dataset_id = var.bq_dataset_marts
   project    = var.project_id
   location   = var.bq_location
@@ -79,6 +87,8 @@ resource "google_bigquery_dataset" "marts" {
 
 # --- Artifact Registry for pipeline/serving container images ----------------
 resource "google_artifact_registry_repository" "images" {
+  depends_on = [google_project_service.apis]
+
   repository_id = var.artifact_repo_name
   project       = var.project_id
   location      = var.region
@@ -133,6 +143,8 @@ resource "google_project_iam_member" "pipeline_logging_writer" {
 # the "Google Cloud Build" GitHub App on this repo (Cloud Build console ->
 # Triggers -> Connect Repository). See infra/terraform/README.md.
 resource "google_cloudbuild_trigger" "training_pipeline" {
+  depends_on = [google_project_service.apis]
+
   project     = var.project_id
   name        = "retail-demand-training-pipeline"
   description = "Build the pipeline image and submit a Vertex AI training run on push to master."
@@ -163,6 +175,8 @@ resource "google_cloudbuild_trigger" "training_pipeline" {
 # demo it publicly, add a google_cloud_run_v2_service_iam_member granting
 # roles/run.invoker to "allUsers".
 resource "google_cloud_run_v2_service" "serving" {
+  depends_on = [google_project_service.apis]
+
   count    = var.serving_image_uri != "" ? 1 : 0
   name     = "retail-demand-serving"
   project  = var.project_id
@@ -206,6 +220,8 @@ resource "google_cloud_run_v2_service" "serving" {
 # --- Batch prediction: scheduled Cloud Run Job + Cloud Scheduler trigger ---
 # Created only once var.pipeline_image_uri is set to a real, pushed image.
 resource "google_cloud_run_v2_job" "batch_predict" {
+  depends_on = [google_project_service.apis]
+
   count    = var.pipeline_image_uri != "" ? 1 : 0
   name     = "retail-demand-batch-predict"
   project  = var.project_id
@@ -242,6 +258,8 @@ resource "google_project_iam_member" "scheduler_run_developer" {
 }
 
 resource "google_cloud_scheduler_job" "batch_predict_daily" {
+  depends_on = [google_project_service.apis]
+
   count     = var.pipeline_image_uri != "" ? 1 : 0
   name      = "retail-demand-batch-predict-daily"
   project   = var.project_id
@@ -263,6 +281,8 @@ resource "google_cloud_scheduler_job" "batch_predict_daily" {
 # needs var.serving_image_uri, since a triggered retrain submits a full
 # training pipeline run that registers against that serving image.
 resource "google_cloud_run_v2_job" "drift_check" {
+  depends_on = [google_project_service.apis]
+
   count    = var.pipeline_image_uri != "" ? 1 : 0
   name     = "retail-demand-drift-check"
   project  = var.project_id
@@ -282,6 +302,8 @@ resource "google_cloud_run_v2_job" "drift_check" {
 }
 
 resource "google_cloud_scheduler_job" "drift_check_daily" {
+  depends_on = [google_project_service.apis]
+
   count     = var.pipeline_image_uri != "" ? 1 : 0
   name      = "retail-demand-drift-check-daily"
   project   = var.project_id
@@ -299,6 +321,8 @@ resource "google_cloud_scheduler_job" "drift_check_daily" {
 }
 
 resource "google_cloud_run_v2_job" "retrain_trigger" {
+  depends_on = [google_project_service.apis]
+
   count    = var.pipeline_image_uri != "" && var.serving_image_uri != "" ? 1 : 0
   name     = "retail-demand-retrain-trigger"
   project  = var.project_id
@@ -324,6 +348,8 @@ resource "google_cloud_run_v2_job" "retrain_trigger" {
 }
 
 resource "google_cloud_scheduler_job" "retrain_trigger_daily" {
+  depends_on = [google_project_service.apis]
+
   count     = var.pipeline_image_uri != "" && var.serving_image_uri != "" ? 1 : 0
   name      = "retail-demand-retrain-trigger-daily"
   project   = var.project_id

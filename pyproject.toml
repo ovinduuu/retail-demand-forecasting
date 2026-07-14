@@ -15,6 +15,9 @@ gcp = [
     "google-cloud-bigquery>=3.25",
     "google-cloud-storage>=2.18",
 ]
+dbt = [
+    "dbt-bigquery>=1.11.3",
+]
 data = [
     "kaggle>=1.6",
 ]
