@@ -101,7 +101,12 @@ def _query_series_list() -> pd.DataFrame:
 
 
 def _query_series_history(store_id: str, item_id: str) -> pd.DataFrame:
-    """(date, store_id, item_id, sales) rows for exactly one series.
+    """Full raw feature-source columns (see features.RAW_SOURCE_COLUMNS) for
+    exactly one series.
+
+    Must select the same columns queries.build_extract_query() uses for
+    training, or predict_next_day's build_features() silently produces fewer
+    feature columns than the model was trained on and LightGBM errors out.
 
     Filtered server-side (BigQuery WHERE clause) rather than pulling the
     whole fact table and filtering in pandas, for the same reason as
@@ -115,9 +120,12 @@ def _query_series_history(store_id: str, item_id: str) -> pd.DataFrame:
 
     from google.cloud import bigquery
 
+    from retail_demand.models.features import RAW_SOURCE_COLUMNS
+
     client, table = _bigquery_client_and_table()
+    columns = ", ".join(RAW_SOURCE_COLUMNS)
     query = (
-        f"SELECT date, store_id, item_id, sales FROM `{table}` "
+        f"SELECT {columns} FROM `{table}` "
         "WHERE store_id = @store_id AND item_id = @item_id ORDER BY date"
     )
     job_config = bigquery.QueryJobConfig(

@@ -14,6 +14,21 @@ import pandas as pd
 LAGS = [7, 14, 28]
 ROLLING_WINDOWS = [7, 28]
 
+# Raw columns build_features()/feature_columns() can make use of - every
+# caller that queries fct_sales for feature-building (pipelines/queries.py,
+# serving/app.py, serving/batch_predict.py) must select all of these, or the
+# resulting feature set silently comes up short (has_event/snap_flag/
+# sell_price missing) and trained-vs-serving feature counts diverge.
+RAW_SOURCE_COLUMNS = [
+    "date",
+    "store_id",
+    "item_id",
+    "sales",
+    "sell_price",
+    "snap_flag",
+    "event_type_1",
+]
+
 ID_COLUMNS = ["store_id", "item_id"]
 BASE_NUMERIC_FEATURES = (
     [f"sales_lag_{lag}" for lag in LAGS]

@@ -67,11 +67,19 @@ def predict_next_day(history: pd.DataFrame, model) -> pd.DataFrame:
 def _load_history_from_bigquery(
     project_id: str, dataset: str, table: str, lookback_days: int
 ) -> pd.DataFrame:
+    """Must select the same columns as pipelines/queries.py's
+    build_extract_query() (see features.RAW_SOURCE_COLUMNS) - otherwise
+    build_features() produces fewer feature columns here than the model was
+    trained on, and LightGBM errors out on the mismatch at predict time.
+    """
     from google.cloud import bigquery
 
+    from retail_demand.models.features import RAW_SOURCE_COLUMNS
+
     client = bigquery.Client(project=project_id)
+    columns = ", ".join(RAW_SOURCE_COLUMNS)
     query = (
-        "SELECT date, store_id, item_id, sales "
+        f"SELECT {columns} "
         f"FROM `{dataset}.{table}` "
         f"WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {lookback_days} DAY) "
         "ORDER BY store_id, item_id, date"
