@@ -36,12 +36,37 @@ whether to retrain (`retrain_trigger.should_retrain`: drift detected in at
 least one feature, OR the latest WRMSSE regressed past a threshold), and if
 so, compiles and submits a new training pipeline run using the same
 `pipelines/submit_pipeline.py` logic Cloud Build already calls after a push
-to `master`.
+to `master`. The scheduled Cloud Run Job passes `--force`, which skips that
+gate and always retrains — daily retraining on fresh data, not just reacting
+to regressions (the underlying drift/WRMSSE-based logic is still there,
+tested, and available via the same flag's absence if that's ever preferred
+again).
 
-Scheduling (`infra/terraform`, all UTC): `drift-check` at 05:00,
-`batch-predict` at 06:00, `retrain-trigger` at 06:30 — drift gets checked and
-predictions refreshed before the retrain decision is made off that same
-day's data.
+Scheduling (`infra/terraform`, all UTC): `daily-ingest` at 03:00,
+`drift-check` at 05:00, `batch-predict` at 06:00, `retrain-trigger` at
+06:30 — the day's new data lands first, then drift gets checked and
+predictions refreshed before the retrain runs off that same day's data.
+
+## Keeping the dataset current
+
+`data_engineering.daily_ingest` is what makes the above meaningful at all:
+without it, `fct_sales` never advances and every job downstream just
+reprocesses the same static data. Each run appends one new synthetic day
+(`data_engineering.synthetic_daily_feed.generate_next_day`) to
+`sales_daily_feed` and runs `dbt run` to refresh the marts - see
+`docs/architecture.md`'s "Dates rebased to land near real time" note for how
+the frozen M5 dates were shifted to make this actually track real time
+instead of drifting further behind it forever.
+
+## Prediction accuracy
+
+`batch_predict.py` writes one-step-ahead predictions to
+`fct_sales_predictions`. Two dbt marts turn that into an accuracy signal
+once actuals catch up: `fct_prediction_accuracy` (per-prediction error,
+inner-joined against `fct_sales`) and `agg_prediction_accuracy_daily`
+(MAE/MAPE/RMSE per day). The serving API exposes both
+(`GET /accuracy`, `GET /accuracy/{store_id}/{item_id}`), and the frontend's
+"Model performance" section charts the daily aggregate.
 
 ## Dashboard
 

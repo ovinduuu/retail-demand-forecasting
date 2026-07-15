@@ -1,11 +1,11 @@
 # Roadmap
 
-**Status: all 9 phases implemented and merged.** Every phase below is real,
-tested code — 54 passing tests, no cloud credentials required to run them.
-What's *not* done is deploying any of it to an actual GCP project or
-Vercel: that needs a Kaggle account, GCP billing, and a Vercel account that
-only you can provide (see "Prerequisites" below). Everywhere a phase says
-"written, not applied" or similar, that's the reason.
+**Status: fully deployed and running.** All 9 original phases plus a
+10th (the daily operational loop) are implemented, tested, and live against
+a real GCP project + Vercel — not just "written, not applied" anymore.
+Frontend: https://frontend-dusky-zeta-70.vercel.app. Every phase below
+describes real code, most of it now also verified against production, not
+just local tests.
 
 - [x] **Phase 0 — Scaffold**: repo structure, `uv`/`pyproject.toml` dependency
       management, `ruff` lint, GitHub Actions CI, git init.
@@ -15,7 +15,7 @@ only you can provide (see "Prerequisites" below). Everywhere a phase says
       (`load_to_bigquery.py`), dbt project (staging + marts:
       `fct_sales`, `dim_item`, `dim_store`, `dim_calendar`), Terraform base
       infra (GCS raw bucket, BigQuery datasets, service account, Artifact
-      Registry) — written, not yet applied to a real GCP project.
+      Registry) — applied to a real GCP project since 2026-07-14.
 - [x] **Phase 2 — EDA & baselines**: naive and seasonal-naive baseline
       models + MAPE/RMSE scoring in `src/retail_demand/models/baseline.py`
       (unit tested); `notebooks/01_eda.ipynb` runs end-to-end on a local
@@ -64,10 +64,10 @@ only you can provide (see "Prerequisites" below). Everywhere a phase says
       `register_model` now also copies each registered model to the fixed
       GCS path `batch_predict.py` reads from. `docker/serving.Dockerfile`
       builds the serving image (separate from the root `Dockerfile`, which
-      stays scoped to pipeline/dbt use). Verified locally end-to-end:
-      trained a real model, ran the FastAPI server, and hit `/health` and
-      `/predict` over actual HTTP. Cloud Run/Scheduler resources are written
-      but not applied — same as everything else needing real GCP credentials.
+      stays scoped to pipeline/dbt use). Verified both locally (trained a
+      real model, ran the FastAPI server, hit `/health` and `/predict` over
+      actual HTTP) and against the live deployment — Cloud Run/Scheduler
+      resources are applied and running on their schedules.
 - [x] **Phase 7 — Monitoring**: `src/retail_demand/monitoring/drift_check.py`
       computes Population Stability Index per numeric feature (reference vs.
       current window) and logs to BigQuery's `model_monitoring` table — a
@@ -88,12 +88,11 @@ only you can provide (see "Prerequisites" below). Everywhere a phase says
       finished project (accurate stack table — no more claiming Vertex AI
       Batch Prediction/Model Monitoring/Experiments where the real
       implementation is a cheaper custom substitute); a couple of stale
-      docs references from earlier phases fixed along the way. No demo
-      screenshots: nothing has been deployed to a real GCP project from this
-      environment, so there's nothing real to screenshot — the closest thing
-      to visual evidence is `notebooks/01_eda.ipynb`, which is committed
-      with its actual rendered plots from a real (local, synthetic-data)
-      execution.
+      docs references from earlier phases fixed along the way. `notebooks/
+      01_eda.ipynb` is committed with its actual rendered plots from a real
+      (local, synthetic-data) execution — still the closest thing to a demo
+      screenshot at this phase, though the live frontend URL is the real
+      evidence now.
 - [x] **Phase 9 — Frontend**: `frontend/` (Next.js App Router, TypeScript,
       Tailwind) — pick a store/item, see recent sales and the model's
       one-step-ahead forecast on a hand-built SVG chart (no charting
@@ -113,11 +112,39 @@ only you can provide (see "Prerequisites" below). Everywhere a phase says
       to the specific credential-filename patterns it was actually meant
       to catch).
 
+- [x] **Phase 10 — Daily operational loop**: the project used to be a
+      one-shot demo frozen at 2016-04-25 (M5's last real day plus one
+      manually-added synthetic day) — every deploy since then showed the
+      same stale forecast. Now:
+      - **Dates rebased to real time**: every M5 date shifted by a fixed
+        `date_offset_days` (dbt staging layer, a multiple of 7 to preserve
+        day-of-week seasonality) so the dataset's last real day lands near
+        "yesterday" instead of a decade ago — see `docs/architecture.md`.
+      - **`data_engineering/daily_ingest.py`**: a new scheduled Cloud Run
+        Job (03:00 UTC, earliest in the chain) that appends one new
+        synthetic day and refreshes the dbt marts, keeping `fct_sales`
+        current going forward. Also forward-fills each series' `sell_price`
+        (real M5 price data runs out ~6 weeks after go-live).
+      - **Unconditional daily retraining**: `retrain_trigger.py --force`
+        skips the drift/WRMSSE gate so the model retrains on fresh data
+        every day, not only on regressions.
+      - **Prediction accuracy tracking**: new dbt marts
+        (`fct_prediction_accuracy`, `agg_prediction_accuracy_daily`) join
+        `batch_predict.py`'s predictions against actuals once they land;
+        new `/accuracy` and `/accuracy/{store}/{item}` endpoints; a new
+        "Model performance" chart on the frontend.
+      - Along the way, found and fixed several real bugs only reachable at
+        production data volume: `batch_predict`/`drift_check`'s
+        `CURRENT_DATE()`-relative queries silently returned zero rows for a
+        decade-stale dataset; three scheduled jobs OOM'd at Cloud Run's
+        default 512Mi the first time they actually processed real data
+        volume; `retrain_trigger`'s automated submission path was missing
+        `PIPELINE_IMAGE` and two IAM grants it had never needed before
+        (previously only ever run under a user's own credentials).
+
 ## Deploying this for real
 
-Everything above is implemented and locally verified wherever that's
-possible without cloud credentials. To actually run it against GCP and
-Vercel:
+Done — see the URLs above. For a fresh deployment into your own project:
 
 1. Get a Kaggle account + API token (`data/README.md`), a GCP project with
    billing enabled, and a Vercel account.
@@ -126,14 +153,11 @@ Vercel:
    and re-apply Terraform to bring up the Cloud Run services/jobs and
    Cloud Scheduler triggers.
 3. Push to `master` (or run `gcloud builds submit --config cloudbuild.yaml`
-   manually) to get the first real training pipeline run.
+   manually) to get the first real training pipeline run — or just wait for
+   the next scheduled `retrain-trigger` run, now that it retrains daily
+   regardless of drift/regression.
 4. Deploy `frontend/` to Vercel pointed at the serving Cloud Run URL from
    step 2 (`frontend/README.md`).
-
-## Prerequisites to unblock real deployment
-
-- Kaggle account + API token (`data/README.md`) — needed to actually pull M5
-- GCP project with billing enabled + `gcloud`/`terraform` CLIs installed
-  locally — needed to apply `infra/terraform` and run anything against
-  BigQuery/Vertex AI
-- Vercel account (free tier is fine) — needed to deploy `frontend/`
+5. Run `daily_ingest`'s Cloud Run Job once manually to close any gap
+   between the rebased dataset's last day and "yesterday" (it self-limits
+   to a 14-day catch-up per run; re-run it if the gap is larger).
