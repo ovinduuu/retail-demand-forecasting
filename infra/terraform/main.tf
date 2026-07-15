@@ -228,6 +228,76 @@ resource "google_cloud_run_v2_service_iam_member" "serving_public" {
   member   = "allUsers"
 }
 
+# --- Daily ingest: scheduled Cloud Run Job + Cloud Scheduler trigger -------
+# Created only once var.pipeline_image_uri is set. Earliest in the daily
+# chain (03:00 UTC) so drift-check/batch-predict/retrain-trigger all see
+# today's data - appends a new synthetic day and refreshes the dbt marts.
+resource "google_cloud_run_v2_job" "daily_ingest" {
+  depends_on = [google_project_service.apis]
+
+  count    = var.pipeline_image_uri != "" ? 1 : 0
+  name     = "retail-demand-daily-ingest"
+  project  = var.project_id
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.pipeline.email
+      containers {
+        image   = var.pipeline_image_uri
+        command = ["python", "-m", "retail_demand.data_engineering.daily_ingest"]
+        args    = ["--project-id", var.project_id]
+        resources {
+          limits = {
+            # Default 512Mi OOM-killed this job: it loads ~90 days x ~30k
+            # series of history into pandas via BigQuery's REST fetch path
+            # (no bigquery-storage client), which is heavier than the
+            # per-series batch-predict/drift-check queries the default was
+            # sized for.
+            cpu    = "1"
+            memory = "2Gi"
+          }
+        }
+      }
+      max_retries = 1
+      timeout     = "1800s" # dbt full rebuild of fct_sales included
+    }
+  }
+}
+
+resource "google_service_account" "scheduler" {
+  count        = var.pipeline_image_uri != "" ? 1 : 0
+  account_id   = "retail-demand-scheduler"
+  project      = var.project_id
+  display_name = "Invokes the scheduled Cloud Run Jobs on a schedule"
+}
+
+resource "google_project_iam_member" "scheduler_run_developer" {
+  count   = var.pipeline_image_uri != "" ? 1 : 0
+  project = var.project_id
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.scheduler[0].email}"
+}
+
+resource "google_cloud_scheduler_job" "daily_ingest_daily" {
+  depends_on = [google_project_service.apis]
+
+  count     = var.pipeline_image_uri != "" ? 1 : 0
+  name      = "retail-demand-daily-ingest-daily"
+  project   = var.project_id
+  region    = var.region
+  schedule  = "0 3 * * *" # 03:00 UTC daily
+  time_zone = "UTC"
+
+  http_target {
+    uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.daily_ingest[0].name}:run"
+    http_method = "POST"
+    oauth_token {
+      service_account_email = google_service_account.scheduler[0].email
+    }
+  }
+}
+
 # --- Batch prediction: scheduled Cloud Run Job + Cloud Scheduler trigger ---
 # Created only once var.pipeline_image_uri is set to a real, pushed image.
 resource "google_cloud_run_v2_job" "batch_predict" {
@@ -252,20 +322,6 @@ resource "google_cloud_run_v2_job" "batch_predict" {
       max_retries = 1
     }
   }
-}
-
-resource "google_service_account" "scheduler" {
-  count        = var.pipeline_image_uri != "" ? 1 : 0
-  account_id   = "retail-demand-scheduler"
-  project      = var.project_id
-  display_name = "Invokes the batch-predict Cloud Run Job on a schedule"
-}
-
-resource "google_project_iam_member" "scheduler_run_developer" {
-  count   = var.pipeline_image_uri != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/run.developer"
-  member  = "serviceAccount:${google_service_account.scheduler[0].email}"
 }
 
 resource "google_cloud_scheduler_job" "batch_predict_daily" {

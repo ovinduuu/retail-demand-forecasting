@@ -19,7 +19,9 @@ select
     sales.store_id,
     sales.item_id,
     sales.sales,
-    prices.sell_price,
+    -- Feed-sourced rows carry their own forward-filled price (see stg_sales);
+    -- historical rows fall back to the real M5 price join.
+    coalesce(sales.sell_price, prices.sell_price) as sell_price,
     calendar.wday,
     calendar.month,
     calendar.year,
