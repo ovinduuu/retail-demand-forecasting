@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import type { SeriesInfo } from "@/lib/types";
+import { formatSeriesLabel } from "@/lib/labels";
 
 interface Props {
   series: SeriesInfo[];
@@ -13,6 +15,19 @@ function seriesKey(s: SeriesInfo): string {
 }
 
 export default function SeriesPicker({ series, selected, onSelect }: Props) {
+  // M5's item/store codes have no real product names (see lib/labels.ts) -
+  // sorted by the formatted label so the picker groups by state/category
+  // instead of raw code order.
+  const sorted = useMemo(
+    () =>
+      [...series].sort((a, b) =>
+        formatSeriesLabel(a.store_id, a.item_id).localeCompare(
+          formatSeriesLabel(b.store_id, b.item_id),
+        ),
+      ),
+    [series],
+  );
+
   return (
     <div className="flex items-center gap-3">
       <label htmlFor="series-picker" className="text-sm font-medium text-[var(--text-secondary)]">
@@ -27,9 +42,9 @@ export default function SeriesPicker({ series, selected, onSelect }: Props) {
           if (found) onSelect(found);
         }}
       >
-        {series.map((s) => (
+        {sorted.map((s) => (
           <option key={seriesKey(s)} value={seriesKey(s)}>
-            {s.store_id} / {s.item_id}
+            {formatSeriesLabel(s.store_id, s.item_id)}
           </option>
         ))}
       </select>
