@@ -37,6 +37,7 @@ from retail_demand.serving.batch_predict import predict_next_day
 
 DEFAULT_MODEL_PATH = "artifacts/lightgbm_model.txt"
 DEFAULT_HISTORY_DAYS = 90
+RECENT_ACTIVITY_DAYS = 30
 CATEGORICAL_COLUMNS = ["store_id", "item_id"]
 
 _allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
@@ -81,9 +82,17 @@ def _bigquery_client_and_table():
 
 
 def _query_series_list() -> pd.DataFrame:
-    """Distinct (store_id, item_id) pairs.
+    """(store_id, item_id) pairs with at least one sale in the last
+    RECENT_ACTIVITY_DAYS days.
 
-    Queried directly with SELECT DISTINCT rather than loading the whole
+    Excludes chronically zero-selling series - about 9% of the full M5
+    catalog has zero total sales in any given recent 14-day window, which
+    otherwise show up in the picker as an item whose chart is flat/empty
+    for the entire visible recent range - reads as "data is missing" rather
+    than "this item just doesn't sell much," so they're filtered out here
+    rather than shown.
+
+    Queried directly (aggregated in BigQuery) rather than loading the whole
     fact table into memory and de-duplicating in pandas - fct_sales is tens
     of millions of rows, which previously made this endpoint effectively
     unusable (Cloud Run's default 512Mi + BigQuery's REST fetch path made it
@@ -95,10 +104,17 @@ def _query_series_list() -> pd.DataFrame:
     local_csv = os.environ.get("LOCAL_DATA_CSV")
     if local_csv:
         history = pd.read_csv(local_csv, parse_dates=["date"])
-        return history[["store_id", "item_id"]].drop_duplicates()
+        recent_start = history["date"].max() - pd.Timedelta(days=RECENT_ACTIVITY_DAYS)
+        recent = history[history["date"] > recent_start]
+        totals = recent.groupby(["store_id", "item_id"])["sales"].sum()
+        return totals[totals > 0].reset_index()[["store_id", "item_id"]]
 
     client, table = _bigquery_client_and_table()
-    query = f"SELECT DISTINCT store_id, item_id FROM `{table}`"
+    query = (
+        f"SELECT store_id, item_id FROM `{table}` "
+        f"WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {RECENT_ACTIVITY_DAYS} DAY) "
+        "GROUP BY store_id, item_id HAVING SUM(sales) > 0"
+    )
     return client.query(query).to_dataframe()
 
 
