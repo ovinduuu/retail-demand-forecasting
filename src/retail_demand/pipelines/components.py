@@ -28,45 +28,9 @@ def run_dbt_transform(project_id: str, bq_location: str = "US") -> str:
     Vertex AI Pipeline as the ML steps below instead of standing up a
     separate always-on orchestrator (e.g. Cloud Composer) just for this.
     """
-    import subprocess
-    import textwrap
-    from pathlib import Path
+    from retail_demand.data_engineering.dbt_runner import run_dbt
 
-    profiles_dir = Path("/tmp/dbt_profiles")
-    profiles_dir.mkdir(parents=True, exist_ok=True)
-    (profiles_dir / "profiles.yml").write_text(
-        textwrap.dedent(
-            f"""
-            retail_demand:
-              target: prod
-              outputs:
-                prod:
-                  type: bigquery
-                  method: oauth
-                  project: {project_id}
-                  dataset: retail_demand_staging
-                  location: {bq_location}
-                  threads: 4
-            """
-        )
-    )
-
-    result = subprocess.run(
-        [
-            "dbt",
-            "run",
-            "--project-dir",
-            "/app/dbt/retail_demand",
-            "--profiles-dir",
-            str(profiles_dir),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    print(result.stdout)
-    if result.returncode != 0:
-        print(result.stderr)
-        raise RuntimeError(f"dbt run failed with exit code {result.returncode}")
+    run_dbt(project_id, bq_location)
     return "ok"
 
 
