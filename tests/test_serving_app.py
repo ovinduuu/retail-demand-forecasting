@@ -123,6 +123,26 @@ def test_series_lists_distinct_store_item_pairs(tmp_path, monkeypatch):
     assert pairs == {("CA_1", "FOODS_1_001"), ("CA_1", "FOODS_1_002")}
 
 
+def test_series_excludes_pairs_with_no_recent_sales(tmp_path, monkeypatch):
+    history = _make_history()
+    max_date = history["date"].max()
+    dormant_rows = pd.DataFrame(
+        [
+            {"date": date, "store_id": "CA_1", "item_id": "FOODS_1_999", "sales": 0}
+            for date in pd.date_range(max_date - pd.Timedelta(days=44), max_date)
+        ]
+    )
+    history = pd.concat([history, dormant_rows], ignore_index=True)
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/series")
+
+    assert resp.status_code == 200
+    pairs = {(s["store_id"], s["item_id"]) for s in resp.json()}
+    assert ("CA_1", "FOODS_1_999") not in pairs
+    assert pairs == {("CA_1", "FOODS_1_001"), ("CA_1", "FOODS_1_002")}
+
+
 def test_history_returns_recent_points_for_known_series(tmp_path, monkeypatch):
     history = _make_history()
     client = _csv_backed_client(tmp_path, monkeypatch, history)
