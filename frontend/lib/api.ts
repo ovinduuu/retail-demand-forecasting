@@ -1,4 +1,10 @@
-import type { AccuracyDailyPoint, ForecastPoint, HistoryPoint, SeriesInfo } from "./types";
+import type {
+  AccuracyDailyPoint,
+  ForecastPoint,
+  HistoryPoint,
+  SeriesAccuracyPoint,
+  SeriesInfo,
+} from "./types";
 
 // The serving API from src/retail_demand/serving/app.py. Defaults to a
 // locally-running instance since nothing is deployed to GCP yet - see
@@ -38,4 +44,13 @@ export function fetchForecast(storeId: string, itemId: string): Promise<Forecast
 
 export function fetchAccuracyDaily(): Promise<AccuracyDailyPoint[]> {
   return fetchJson<AccuracyDailyPoint[]>("/accuracy");
+}
+
+export function fetchSeriesAccuracy(
+  storeId: string,
+  itemId: string,
+): Promise<SeriesAccuracyPoint[]> {
+  return fetchJson<SeriesAccuracyPoint[]>(
+    `/accuracy/${encodeURIComponent(storeId)}/${encodeURIComponent(itemId)}`,
+  );
 }

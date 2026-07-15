@@ -1,11 +1,17 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import type { ForecastPoint, HistoryPoint } from "@/lib/types";
+import type { ForecastPoint, HistoryPoint, SeriesAccuracyPoint } from "@/lib/types";
 
 interface Props {
   history: HistoryPoint[];
   forecast: ForecastPoint | null;
+  // Backtested one-step-ahead predictions for the last ~2 weeks, dated in
+  // the past (unlike `forecast`, which is the single live next-day point) -
+  // plotted as a second line over the same actual-sales window so predicted
+  // and actual can be compared directly. Empty until backfill_predictions.py
+  // has run for this series.
+  accuracy: SeriesAccuracyPoint[];
   seriesLabel: string;
   loading: boolean;
 }
@@ -46,7 +52,13 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function ForecastChart({ history, forecast, seriesLabel, loading }: Props) {
+export default function ForecastChart({
+  history,
+  forecast,
+  accuracy,
+  seriesLabel,
+  loading,
+}: Props) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [showTable, setShowTable] = useState(false);
   const gradientId = useId();
@@ -67,9 +79,37 @@ export default function ForecastChart({ history, forecast, seriesLabel, loading 
     return historyPoints;
   }, [history, forecast]);
 
+  // Backtested predictions only matter for dates already shown on the
+  // actual-sales line - anchor each one to that date's x position rather
+  // than plotting on an independent scale.
+  const dateToIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    points.forEach((p, i) => m.set(p.date, i));
+    return m;
+  }, [points]);
+
+  const predictedPoints = useMemo(
+    () =>
+      accuracy
+        .map((a) => ({ ...a, index: dateToIndex.get(a.date) }))
+        .filter((a): a is typeof a & { index: number } => a.index !== undefined)
+        .sort((a, b) => a.index - b.index),
+    [accuracy, dateToIndex],
+  );
+  const predictedByIndex = useMemo(() => {
+    const m = new Map<number, SeriesAccuracyPoint>();
+    predictedPoints.forEach((p) => m.set(p.index, p));
+    return m;
+  }, [predictedPoints]);
+
   const maxValue = useMemo(
-    () => Math.max(1, ...points.map((p) => p.value)),
-    [points],
+    () =>
+      Math.max(
+        1,
+        ...points.map((p) => p.value),
+        ...predictedPoints.map((p) => p.predicted_sales),
+      ),
+    [points, predictedPoints],
   );
   const ticks = useMemo(() => niceTicks(maxValue * 1.1), [maxValue]);
   const yMax = ticks[ticks.length - 1] || 1;
@@ -84,6 +124,12 @@ export default function ForecastChart({ history, forecast, seriesLabel, loading 
   const actualPoints = points.filter((p) => !p.isForecast);
   const linePath = actualPoints
     .map((p, i) => `${i === 0 ? "M" : "L"} ${xForIndex(i).toFixed(1)} ${yForValue(p.value).toFixed(1)}`)
+    .join(" ");
+  const predictedLinePath = predictedPoints
+    .map(
+      (p, i) =>
+        `${i === 0 ? "M" : "L"} ${xForIndex(p.index).toFixed(1)} ${yForValue(p.predicted_sales).toFixed(1)}`,
+    )
     .join(" ");
 
   const forecastIndex = points.length - 1;
@@ -137,15 +183,19 @@ export default function ForecastChart({ history, forecast, seriesLabel, loading 
               <tr className="border-b border-[var(--gridline)] text-left text-[var(--text-secondary)]">
                 <th className="px-3 py-2 font-medium">Date</th>
                 <th className="px-3 py-2 font-medium">Sales</th>
+                <th className="px-3 py-2 font-medium">Predicted</th>
                 <th className="px-3 py-2 font-medium">Type</th>
               </tr>
             </thead>
             <tbody>
-              {points.map((p) => (
+              {points.map((p, i) => (
                 <tr key={p.date} className="border-b border-[var(--gridline)] last:border-0">
                   <td className="px-3 py-2 tabular-nums text-[var(--text-primary)]">{p.date}</td>
                   <td className="px-3 py-2 tabular-nums text-[var(--text-primary)]">
                     {p.value.toFixed(0)}
+                  </td>
+                  <td className="px-3 py-2 tabular-nums text-[var(--text-secondary)]">
+                    {predictedByIndex.get(i)?.predicted_sales.toFixed(0) ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-[var(--text-secondary)]">
                     {p.isForecast ? "Forecast" : "Actual"}
@@ -225,6 +275,32 @@ export default function ForecastChart({ history, forecast, seriesLabel, loading 
               strokeLinecap="round"
             />
 
+            {/* backtested predicted line, last ~2 weeks */}
+            {predictedPoints.length > 0 && (
+              <>
+                <path
+                  d={predictedLinePath}
+                  fill="none"
+                  stroke="var(--series-2)"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {predictedPoints.map((p) => (
+                  <circle
+                    key={p.date}
+                    cx={xForIndex(p.index)}
+                    cy={yForValue(p.predicted_sales)}
+                    r={3}
+                    fill="var(--series-2)"
+                    stroke="var(--surface-1)"
+                    strokeWidth={1.5}
+                  />
+                ))}
+              </>
+            )}
+
             {/* dashed connector + forecast marker */}
             {forecast && (
               <>
@@ -302,6 +378,16 @@ export default function ForecastChart({ history, forecast, seriesLabel, loading 
                   {hovered.isForecast ? "(forecast)" : ""}
                 </span>
               </div>
+              {!hovered.isForecast && predictedByIndex.has(hoverIndex ?? -1) && (
+                <div className="mt-0.5 flex items-center gap-1.5 text-[var(--text-secondary)]">
+                  <span
+                    className="inline-block h-0.5 w-3 border-t-2 border-dashed"
+                    style={{ borderColor: "var(--series-2)" }}
+                  />
+                  predicted{" "}
+                  {predictedByIndex.get(hoverIndex ?? -1)?.predicted_sales.toFixed(0)} units
+                </div>
+              )}
             </div>
           )}
         </div>

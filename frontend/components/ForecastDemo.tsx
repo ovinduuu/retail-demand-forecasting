@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { fetchForecast, fetchHistory, getApiBaseUrl } from "@/lib/api";
+import { fetchForecast, fetchHistory, fetchSeriesAccuracy, getApiBaseUrl } from "@/lib/api";
 import { formatSeriesLabel } from "@/lib/labels";
-import type { ForecastPoint, HistoryPoint, SeriesInfo } from "@/lib/types";
+import type { ForecastPoint, HistoryPoint, SeriesAccuracyPoint, SeriesInfo } from "@/lib/types";
 import SeriesPicker from "./SeriesPicker";
 import ForecastChart from "./ForecastChart";
 
@@ -16,6 +16,7 @@ export default function ForecastDemo({ initialSeries, initialError }: Props) {
   const [selected, setSelected] = useState<SeriesInfo | null>(initialSeries[0] ?? null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint | null>(null);
+  const [accuracy, setAccuracy] = useState<SeriesAccuracyPoint[]>([]);
   const [error, setError] = useState<string | null>(initialError);
   const [isPending, startTransition] = useTransition();
 
@@ -38,6 +39,16 @@ export default function ForecastDemo({ initialSeries, initialError }: Props) {
         setError(err instanceof Error ? err.message : "Failed to load data");
       }
     });
+
+    // Independent of the history/forecast fetch above: a series with no
+    // backfilled predictions yet shouldn't block or error the main chart.
+    fetchSeriesAccuracy(selected.store_id, selected.item_id)
+      .then((data) => {
+        if (!cancelled) setAccuracy(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAccuracy([]);
+      });
 
     return () => {
       cancelled = true;
@@ -73,6 +84,7 @@ export default function ForecastDemo({ initialSeries, initialError }: Props) {
       <ForecastChart
         history={history}
         forecast={forecast}
+        accuracy={accuracy}
         seriesLabel={seriesLabel}
         loading={isPending}
       />
