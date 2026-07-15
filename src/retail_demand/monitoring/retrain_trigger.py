@@ -112,22 +112,33 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Defaults to retail-demand-pipeline@<project-id>.iam.gserviceaccount.com.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Submit a training run unconditionally, skipping the drift/WRMSSE "
+            "gate. Used for daily scheduled retraining, where the point is a "
+            "fresh model every day rather than only reacting to regressions."
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
 
-    drift_results = _load_latest_drift_results(
-        args.project_id, args.monitoring_dataset, args.drift_table
-    )
-    latest_wrmsse = _load_latest_wrmsse(args.project_id, args.monitoring_dataset, args.runs_table)
-
-    if not should_retrain(
-        drift_results, latest_wrmsse, args.min_drifted_features, args.wrmsse_threshold
-    ):
-        print("No retrain trigger: no significant drift and no metric regression.")
-        return
+    if not args.force:
+        drift_results = _load_latest_drift_results(
+            args.project_id, args.monitoring_dataset, args.drift_table
+        )
+        latest_wrmsse = _load_latest_wrmsse(
+            args.project_id, args.monitoring_dataset, args.runs_table
+        )
+        if not should_retrain(
+            drift_results, latest_wrmsse, args.min_drifted_features, args.wrmsse_threshold
+        ):
+            print("No retrain trigger: no significant drift and no metric regression.")
+            return
 
     check_pipeline_image_is_real()
     compiled_path = compile_pipeline(args.compiled_path)

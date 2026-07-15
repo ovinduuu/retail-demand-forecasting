@@ -120,6 +120,29 @@ resource "google_project_iam_member" "pipeline_gcs" {
   member  = "serviceAccount:${google_service_account.pipeline.email}"
 }
 
+# storage.objectAdmin covers object reads/writes but not bucket-level
+# metadata calls (storage.buckets.get/list) - Vertex AI's PipelineJob.submit()
+# does a bucket-existence check before creating the run and 403s without this.
+# Only surfaced once retrain_trigger.py actually submitted a pipeline run as
+# this service account (previously always run under a user's own credentials).
+# legacyBucketReader is bucket-scoped only - not assignable at project level.
+resource "google_storage_bucket_iam_member" "pipeline_gcs_bucket_reader" {
+  bucket = google_storage_bucket.raw.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_service_account.pipeline.email}"
+}
+
+# Vertex AI's PipelineJob.submit(service_account=...) requires the caller to
+# have iam.serviceAccountUser on the SA it's telling Vertex to run steps as -
+# including "on itself" when the caller already runs as that SA (this Cloud
+# Run Job's identity). Same "only surfaces under automated submission" story
+# as the grant above.
+resource "google_service_account_iam_member" "pipeline_self_act_as" {
+  service_account_id = google_service_account.pipeline.name
+  role                = "roles/iam.serviceAccountUser"
+  member              = "serviceAccount:${google_service_account.pipeline.email}"
+}
+
 resource "google_project_iam_member" "pipeline_vertex" {
   project = var.project_id
   role    = "roles/aiplatform.user"
@@ -407,7 +430,16 @@ resource "google_cloud_run_v2_job" "retrain_trigger" {
           "--pipeline-root", local.pipeline_root,
           "--serving-container-image-uri", var.serving_image_uri,
           "--serving-model-gcs-path", local.serving_model_gcs_path,
+          "--force", # retrain daily regardless of drift/WRMSSE - see retrain_trigger.py
         ]
+        # components.py compiles the pipeline against PIPELINE_IMAGE (defaults
+        # to a placeholder if unset); retrain_trigger.py's submission path
+        # never actually ran until this env var was added - it was always
+        # rejected by check_pipeline_image_is_real()'s placeholder guard.
+        env {
+          name  = "PIPELINE_IMAGE"
+          value = var.pipeline_image_uri
+        }
       }
       max_retries = 1
     }
