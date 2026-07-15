@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { fetchForecast, fetchHistory, getApiBaseUrl } from "@/lib/api";
+import { formatSeriesLabel } from "@/lib/labels";
 import type { ForecastPoint, HistoryPoint, SeriesInfo } from "@/lib/types";
 import SeriesPicker from "./SeriesPicker";
 import ForecastChart from "./ForecastChart";
@@ -44,7 +45,7 @@ export default function ForecastDemo({ initialSeries, initialError }: Props) {
   }, [selected]);
 
   const seriesLabel = useMemo(
-    () => (selected ? `${selected.store_id} / ${selected.item_id}` : ""),
+    () => (selected ? formatSeriesLabel(selected.store_id, selected.item_id) : ""),
     [selected],
   );
 
