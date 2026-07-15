@@ -38,6 +38,7 @@ from retail_demand.serving.batch_predict import predict_next_day
 DEFAULT_MODEL_PATH = "artifacts/lightgbm_model.txt"
 DEFAULT_HISTORY_DAYS = 90
 RECENT_ACTIVITY_DAYS = 30
+RECENT_ACCURACY_DAYS = 14
 CATEGORICAL_COLUMNS = ["store_id", "item_id"]
 
 _allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
@@ -214,11 +215,17 @@ def _query_accuracy_daily() -> pd.DataFrame:
 
 
 def _query_series_accuracy(store_id: str, item_id: str) -> pd.DataFrame:
-    """Predicted-vs-actual points for one series, from BigQuery's
-    fct_prediction_accuracy mart (or computed locally in dev mode).
+    """Predicted-vs-actual points for one series over the last
+    RECENT_ACCURACY_DAYS days, from BigQuery's fct_prediction_accuracy mart
+    (or computed locally in dev mode) - capped so this stays a "recent
+    comparison" endpoint rather than growing unbounded as accuracy history
+    accumulates daily.
     """
     if os.environ.get("LOCAL_PREDICTIONS_CSV"):
         accuracy = _local_prediction_accuracy()
+        if not accuracy.empty:
+            recent_start = accuracy["date"].max() - pd.Timedelta(days=RECENT_ACCURACY_DAYS)
+            accuracy = accuracy[accuracy["date"] > recent_start]
         series = accuracy[(accuracy.store_id == store_id) & (accuracy.item_id == item_id)]
         return series.sort_values("date")
 
@@ -229,7 +236,9 @@ def _query_series_accuracy(store_id: str, item_id: str) -> pd.DataFrame:
     query = (
         "SELECT date, predicted_sales, actual_sales "
         f"FROM `{dataset}.fct_prediction_accuracy` "
-        "WHERE store_id = @store_id AND item_id = @item_id ORDER BY date"
+        "WHERE store_id = @store_id AND item_id = @item_id "
+        f"AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL {RECENT_ACCURACY_DAYS} DAY) "
+        "ORDER BY date"
     )
     job_config = bigquery.QueryJobConfig(
         query_parameters=[

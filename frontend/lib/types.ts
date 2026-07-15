@@ -20,3 +20,9 @@ export interface AccuracyDailyPoint {
   mape: number | null; // fraction, e.g. 0.25 = 25% - null if no actual sales were nonzero that day
   rmse: number;
 }
+
+export interface SeriesAccuracyPoint {
+  date: string; // YYYY-MM-DD
+  predicted_sales: number;
+  actual_sales: number;
+}

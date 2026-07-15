@@ -240,3 +240,31 @@ def test_series_accuracy_empty_for_series_with_no_predictions(tmp_path, monkeypa
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_series_accuracy_excludes_predictions_older_than_the_recent_window(
+    tmp_path, monkeypatch
+):
+    history = _make_history()
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+    predictions = _make_predictions(history)
+    stale_row = pd.DataFrame(
+        [
+            {
+                "date": history["date"].max() - pd.Timedelta(days=40),
+                "store_id": "CA_1",
+                "item_id": "FOODS_1_001",
+                "predicted_sales": 999,
+            }
+        ]
+    )
+    predictions = pd.concat([predictions, stale_row], ignore_index=True)
+    predictions_path = tmp_path / "predictions.csv"
+    predictions.to_csv(predictions_path, index=False)
+    monkeypatch.setenv("LOCAL_PREDICTIONS_CSV", str(predictions_path))
+
+    resp = client.get("/accuracy/CA_1/FOODS_1_001")
+
+    assert resp.status_code == 200
+    points = resp.json()
+    assert all(p["predicted_sales"] != 999 for p in points)
