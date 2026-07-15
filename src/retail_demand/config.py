@@ -10,6 +10,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_RAW_DIR = REPO_ROOT / "data" / "raw"
 DATA_EXTERNAL_DIR = REPO_ROOT / "data" / "external"
 
+# Days added to every M5 date (in dbt's staging layer) so the frozen
+# 2011-2016 snapshot lands near real time instead of a decade in the past -
+# must match dbt/retail_demand/dbt_project.yml's `date_offset_days` var.
+# data_engineering/daily_ingest.py uses this to convert a real target date
+# back to the raw/relative date it should append to sales_daily_feed.
+DATE_OFFSET_DAYS = 3731
+
 
 @dataclass(frozen=True)
 class GCPConfig:

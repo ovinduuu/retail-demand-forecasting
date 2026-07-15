@@ -16,3 +16,12 @@ models:
     marts:
       +materialized: table
       +schema: retail_demand_marts
+
+vars:
+  # Days added to every M5 date so the frozen 2011-2016 snapshot lands near
+  # real time instead of a decade in the past. Must stay in sync with
+  # src/retail_demand/config.py::DATE_OFFSET_DAYS (Python needs the same
+  # constant to convert real dates back to raw/relative dates when the daily
+  # ingest job appends new rows). Chosen as a multiple of 7 so day-of-week
+  # seasonality is preserved exactly across the shift.
+  date_offset_days: 3731
