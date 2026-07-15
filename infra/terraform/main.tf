@@ -341,8 +341,20 @@ resource "google_cloud_run_v2_job" "batch_predict" {
           "--project-id", var.project_id,
           "--model-path", local.serving_model_gcs_path,
         ]
+        resources {
+          limits = {
+            # Default 512Mi OOM-killed this job the first time it actually
+            # ran against real data volume (previously always saw zero rows
+            # due to the pre-rebase CURRENT_DATE() staleness bug) - same
+            # ~60-days x ~30k-series-via-REST-fetch memory profile as
+            # daily_ingest.
+            cpu    = "1"
+            memory = "2Gi"
+          }
+        }
       }
       max_retries = 1
+      timeout     = "1800s"
     }
   }
 }
@@ -385,8 +397,18 @@ resource "google_cloud_run_v2_job" "drift_check" {
         image   = var.pipeline_image_uri
         command = ["python", "-m", "retail_demand.monitoring.drift_check"]
         args    = ["--project-id", var.project_id]
+        resources {
+          limits = {
+            # Same OOM story as batch_predict/daily_ingest, but worse: the
+            # reference window alone is 365 days x ~30k series (~11M rows)
+            # pulled via BigQuery's REST fetch path.
+            cpu    = "1"
+            memory = "4Gi"
+          }
+        }
       }
       max_retries = 1
+      timeout     = "1800s"
     }
   }
 }

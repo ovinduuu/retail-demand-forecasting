@@ -8,10 +8,12 @@ Two roles:
    image for the optional Cloud Run live-request demo (see
    docs/architecture.md).
 2. A small read/forecast API (GET /series, GET /history/{store_id}/{item_id},
-   GET /forecast/{store_id}/{item_id}) for the Next.js frontend
-   (frontend/) - lists available series, returns recent history, and a
-   one-step-ahead forecast, reusing batch_predict.py's prediction logic for
-   a single series instead of the whole warehouse.
+   GET /forecast/{store_id}/{item_id}, GET /accuracy,
+   GET /accuracy/{store_id}/{item_id}) for the Next.js frontend
+   (frontend/) - lists available series, returns recent history, a
+   one-step-ahead forecast, and model accuracy (predicted vs. actual, once
+   batch_predict.py's predictions have a matching actual - see dbt's
+   fct_prediction_accuracy/agg_prediction_accuracy_daily marts).
 
 Data source for (2) is BigQuery's fct_sales mart by default (set
 GCP_PROJECT_ID). For local development without GCP credentials, set
@@ -144,6 +146,86 @@ def _query_series_history(store_id: str, item_id: str) -> pd.DataFrame:
     return result
 
 
+def _local_prediction_accuracy() -> pd.DataFrame:
+    """Predictions joined to actuals, computed in pandas from LOCAL_DATA_CSV
+    + LOCAL_PREDICTIONS_CSV - mirrors dbt's fct_prediction_accuracy model so
+    /accuracy* stay unit-testable without BigQuery.
+    """
+    history = pd.read_csv(os.environ["LOCAL_DATA_CSV"], parse_dates=["date"])
+    predictions = pd.read_csv(os.environ["LOCAL_PREDICTIONS_CSV"], parse_dates=["date"])
+    merged = predictions.merge(
+        history[["date", "store_id", "item_id", "sales"]],
+        on=["date", "store_id", "item_id"],
+        how="inner",
+    ).rename(columns={"sales": "actual_sales"})
+    merged["abs_error"] = (merged["predicted_sales"] - merged["actual_sales"]).abs()
+    merged["pct_error"] = merged.apply(
+        lambda r: r["abs_error"] / r["actual_sales"] if r["actual_sales"] > 0 else None,
+        axis=1,
+    )
+    return merged
+
+
+def _query_accuracy_daily() -> pd.DataFrame:
+    """Daily MAE/MAPE/RMSE, from BigQuery's agg_prediction_accuracy_daily
+    mart (or computed locally in dev mode).
+    """
+    if os.environ.get("LOCAL_PREDICTIONS_CSV"):
+        accuracy = _local_prediction_accuracy()
+        return (
+            accuracy.groupby("date")
+            .agg(
+                n_predictions=("abs_error", "count"),
+                mae=("abs_error", "mean"),
+                mape=("pct_error", "mean"),
+                rmse=("abs_error", lambda s: float((s**2).mean() ** 0.5)),
+            )
+            .reset_index()
+            .sort_values("date")
+        )
+
+    from google.cloud import bigquery
+
+    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
+    dataset = os.environ.get("BQ_DATASET_MARTS", "retail_demand_marts")
+    query = (
+        "SELECT date, n_predictions, mae, mape, rmse "
+        f"FROM `{dataset}.agg_prediction_accuracy_daily` ORDER BY date"
+    )
+    result = client.query(query).to_dataframe()
+    result["date"] = pd.to_datetime(result["date"])
+    return result
+
+
+def _query_series_accuracy(store_id: str, item_id: str) -> pd.DataFrame:
+    """Predicted-vs-actual points for one series, from BigQuery's
+    fct_prediction_accuracy mart (or computed locally in dev mode).
+    """
+    if os.environ.get("LOCAL_PREDICTIONS_CSV"):
+        accuracy = _local_prediction_accuracy()
+        series = accuracy[(accuracy.store_id == store_id) & (accuracy.item_id == item_id)]
+        return series.sort_values("date")
+
+    from google.cloud import bigquery
+
+    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
+    dataset = os.environ.get("BQ_DATASET_MARTS", "retail_demand_marts")
+    query = (
+        "SELECT date, predicted_sales, actual_sales "
+        f"FROM `{dataset}.fct_prediction_accuracy` "
+        "WHERE store_id = @store_id AND item_id = @item_id ORDER BY date"
+    )
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("store_id", "STRING", store_id),
+            bigquery.ScalarQueryParameter("item_id", "STRING", item_id),
+        ]
+    )
+    result = client.query(query, job_config=job_config).to_dataframe()
+    result["date"] = pd.to_datetime(result["date"])
+    return result
+
+
 class SeriesInfo(BaseModel):
     store_id: str
     item_id: str
@@ -165,6 +247,20 @@ class PredictRequest(BaseModel):
 
 class PredictResponse(BaseModel):
     predictions: list[float]
+
+
+class AccuracyDailyPoint(BaseModel):
+    date: str
+    n_predictions: int
+    mae: float
+    mape: float | None
+    rmse: float
+
+
+class SeriesAccuracyPoint(BaseModel):
+    date: str
+    predicted_sales: float
+    actual_sales: float
 
 
 @app.get("/health")
@@ -219,3 +315,31 @@ def get_forecast(store_id: str, item_id: str) -> ForecastPoint:
     return ForecastPoint(
         date=row.date.date().isoformat(), predicted_sales=float(row.predicted_sales)
     )
+
+
+@app.get("/accuracy", response_model=list[AccuracyDailyPoint])
+def get_accuracy_daily() -> list[AccuracyDailyPoint]:
+    daily = _query_accuracy_daily()
+    return [
+        AccuracyDailyPoint(
+            date=row.date.date().isoformat(),
+            n_predictions=int(row.n_predictions),
+            mae=float(row.mae),
+            mape=float(row.mape) if pd.notna(row.mape) else None,
+            rmse=float(row.rmse),
+        )
+        for row in daily.itertuples()
+    ]
+
+
+@app.get("/accuracy/{store_id}/{item_id}", response_model=list[SeriesAccuracyPoint])
+def get_series_accuracy(store_id: str, item_id: str) -> list[SeriesAccuracyPoint]:
+    series = _query_series_accuracy(store_id, item_id)
+    return [
+        SeriesAccuracyPoint(
+            date=row.date.date().isoformat(),
+            predicted_sales=float(row.predicted_sales),
+            actual_sales=float(row.actual_sales),
+        )
+        for row in series.itertuples()
+    ]
