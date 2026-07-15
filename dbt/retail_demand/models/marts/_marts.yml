@@ -32,3 +32,23 @@ models:
         tests: [not_null]
       - name: sales
         tests: [not_null]
+
+  - name: fct_prediction_accuracy
+    description: >
+      One row per (date, store_id, item_id) prediction with a matching
+      actual - joins fct_sales_predictions to fct_sales.
+    columns:
+      - name: date
+        tests: [not_null]
+      - name: store_id
+        tests: [not_null]
+      - name: item_id
+        tests: [not_null]
+
+  - name: agg_prediction_accuracy_daily
+    description: >
+      One row per date - MAE/MAPE/RMSE aggregated from
+      fct_prediction_accuracy, for a model-accuracy-over-time chart.
+    columns:
+      - name: date
+        tests: [not_null, unique]

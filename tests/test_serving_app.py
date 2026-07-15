@@ -153,3 +153,70 @@ def test_forecast_returns_one_nonnegative_point_for_known_series(tmp_path, monke
     body = resp.json()
     assert body["predicted_sales"] >= 0
     assert body["date"] == (history["date"].max() + pd.Timedelta(days=1)).date().isoformat()
+
+
+def _make_predictions(history: pd.DataFrame) -> pd.DataFrame:
+    """One prediction per series for each of the last 3 days in `history`,
+    offset from the actual by a small fixed amount so accuracy math is
+    checkable.
+    """
+    rows = []
+    for (store_id, item_id), series in history.groupby(["store_id", "item_id"]):
+        for _, row in series.sort_values("date").tail(3).iterrows():
+            rows.append(
+                {
+                    "date": row["date"],
+                    "store_id": store_id,
+                    "item_id": item_id,
+                    "predicted_sales": row["sales"] + 2,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _predictions_backed_client(tmp_path, monkeypatch, history: pd.DataFrame) -> TestClient:
+    client = _csv_backed_client(tmp_path, monkeypatch, history)
+    predictions_path = tmp_path / "predictions.csv"
+    _make_predictions(history).to_csv(predictions_path, index=False)
+    monkeypatch.setenv("LOCAL_PREDICTIONS_CSV", str(predictions_path))
+    return client
+
+
+def test_accuracy_daily_returns_one_row_per_predicted_date_with_positive_error(
+    tmp_path, monkeypatch
+):
+    history = _make_history()
+    client = _predictions_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/accuracy")
+
+    assert resp.status_code == 200
+    days = resp.json()
+    assert len(days) == 3
+    for day in days:
+        assert day["n_predictions"] == 2  # two series in _make_history
+        assert day["mae"] == pytest.approx(2.0)
+        assert day["rmse"] == pytest.approx(2.0)
+
+
+def test_series_accuracy_returns_predicted_and_actual_for_one_series(tmp_path, monkeypatch):
+    history = _make_history()
+    client = _predictions_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/accuracy/CA_1/FOODS_1_001")
+
+    assert resp.status_code == 200
+    points = resp.json()
+    assert len(points) == 3
+    for point in points:
+        assert point["predicted_sales"] == point["actual_sales"] + 2
+
+
+def test_series_accuracy_empty_for_series_with_no_predictions(tmp_path, monkeypatch):
+    history = _make_history()
+    client = _predictions_backed_client(tmp_path, monkeypatch, history)
+
+    resp = client.get("/accuracy/UNKNOWN_STORE/UNKNOWN_ITEM")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
