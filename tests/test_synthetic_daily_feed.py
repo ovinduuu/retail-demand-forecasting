@@ -56,3 +56,27 @@ def test_generate_next_day_is_reproducible_with_seed():
     day1 = generate_next_day(history, dt.date(2024, 1, 29), rng=np.random.default_rng(7))
     day2 = generate_next_day(history, dt.date(2024, 1, 29), rng=np.random.default_rng(7))
     pd.testing.assert_frame_equal(day1, day2)
+
+
+def test_generate_next_day_forward_fills_last_known_price():
+    history = _make_history()
+    history["sell_price"] = 3.5
+    # Most recent rows for one series have no price yet (not known "today").
+    last_two = history[
+        (history.store_id == "CA_1") & (history.item_id == "FOODS_1_001")
+    ].sort_values("date").tail(2).index
+    history.loc[last_two, "sell_price"] = None
+
+    next_day = generate_next_day(history, as_of_date=dt.date(2024, 1, 29))
+
+    assert "sell_price" in next_day.columns
+    assert (next_day["sell_price"] == 3.5).all()
+
+
+def test_generate_next_day_price_is_null_when_series_never_had_one():
+    history = _make_history()
+    history["sell_price"] = None
+
+    next_day = generate_next_day(history, as_of_date=dt.date(2024, 1, 29))
+
+    assert next_day["sell_price"].isna().all()

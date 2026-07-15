@@ -6,6 +6,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 artifacts/
+dbt/retail_demand/target/
+dbt/retail_demand/dbt_packages/
+dbt/retail_demand/logs/
 data/raw/*
 data/external/*
 notebooks/

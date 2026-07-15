@@ -43,6 +43,12 @@ def generate_next_day(
     Args:
         history: long-format DataFrame with columns ["date", "store_id",
             "item_id", "sales"], sorted by date, one row per (date, store, item).
+            An optional "sell_price" column, if present, is forward-filled
+            into the new day (each series' most recent known price carried
+            unchanged) - real price data runs out once synthetic days
+            outpace M5's calendar range, and price has genuine day-to-day
+            continuity (unlike a one-off SNAP/event flag), so carrying it
+            forward is more realistic than leaving it null.
         as_of_date: the calendar date to generate sales for.
         noise_std_frac: relative std-dev of the multiplicative noise applied
             to each series' seasonal baseline.
@@ -55,21 +61,27 @@ def generate_next_day(
     if rng is None:
         rng = np.random.default_rng()
 
+    has_price = "sell_price" in history.columns
     weekday = as_of_date.weekday()
     rows = []
     for (store_id, item_id), series in history.groupby(["store_id", "item_id"]):
-        baseline = _seasonal_baseline(series.sort_values("date")["sales"], weekday)
+        series = series.sort_values("date")
+        baseline = _seasonal_baseline(series["sales"], weekday)
         noise = rng.normal(loc=1.0, scale=noise_std_frac)
         sales = max(0, round(baseline * max(noise, 0.0)))
-        rows.append(
-            {
-                "date": as_of_date,
-                "store_id": store_id,
-                "item_id": item_id,
-                "sales": sales,
-            }
-        )
-    return pd.DataFrame(rows, columns=["date", "store_id", "item_id", "sales"])
+        row = {
+            "date": as_of_date,
+            "store_id": store_id,
+            "item_id": item_id,
+            "sales": sales,
+        }
+        if has_price:
+            known_prices = series["sell_price"].dropna()
+            row["sell_price"] = float(known_prices.iloc[-1]) if not known_prices.empty else None
+        rows.append(row)
+
+    columns = ["date", "store_id", "item_id", "sales"] + (["sell_price"] if has_price else [])
+    return pd.DataFrame(rows, columns=columns)
 
 
 def _parse_args() -> argparse.Namespace:
