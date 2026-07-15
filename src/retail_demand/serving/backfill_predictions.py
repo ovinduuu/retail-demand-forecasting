@@ -26,7 +26,7 @@ import pandas as pd
 from retail_demand.models.features import RAW_SOURCE_COLUMNS
 from retail_demand.serving.batch_predict import predict_next_day, resolve_model_path
 
-DEFAULT_BACKFILL_DAYS = 14
+DEFAULT_BACKFILL_DAYS = 60
 DEFAULT_LOOKBACK_DAYS = 60
 
 

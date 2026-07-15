@@ -38,7 +38,7 @@ from retail_demand.serving.batch_predict import predict_next_day
 DEFAULT_MODEL_PATH = "artifacts/lightgbm_model.txt"
 DEFAULT_HISTORY_DAYS = 90
 RECENT_ACTIVITY_DAYS = 30
-RECENT_ACCURACY_DAYS = 14
+RECENT_ACCURACY_DAYS = 60
 CATEGORICAL_COLUMNS = ["store_id", "item_id"]
 
 _allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")

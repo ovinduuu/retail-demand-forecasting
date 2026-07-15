@@ -6,7 +6,7 @@ import type { ForecastPoint, HistoryPoint, SeriesAccuracyPoint } from "@/lib/typ
 interface Props {
   history: HistoryPoint[];
   forecast: ForecastPoint | null;
-  // Backtested one-step-ahead predictions for the last ~2 weeks, dated in
+  // Backtested one-step-ahead predictions for the last ~2 months, dated in
   // the past (unlike `forecast`, which is the single live next-day point) -
   // plotted as a second line over the same actual-sales window so predicted
   // and actual can be compared directly. Empty until backfill_predictions.py
@@ -275,7 +275,7 @@ export default function ForecastChart({
               strokeLinecap="round"
             />
 
-            {/* backtested predicted line, last ~2 weeks */}
+            {/* backtested predicted line, last ~2 months */}
             {predictedPoints.length > 0 && (
               <>
                 <path
