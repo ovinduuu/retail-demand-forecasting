@@ -6,7 +6,11 @@ import pytest
 
 pytest.importorskip("lightgbm")
 
-from retail_demand.models.train import run_training, time_based_split  # noqa: E402
+from retail_demand.models.train import (  # noqa: E402
+    compute_series_weights,
+    run_training,
+    time_based_split,
+)
 
 
 def _make_history(days: int = 120) -> pd.DataFrame:
@@ -49,3 +53,32 @@ def test_run_training_produces_model_and_metrics():
     assert metrics["n"] > 0
     assert len(features) > 0
     assert not valid_df.empty
+
+
+def test_run_training_accepts_weight_dampening():
+    history = _make_history()
+    model, metrics, _, _ = run_training(history, valid_days=14, weight_dampening="sqrt")
+
+    assert model.num_trees() > 0
+    assert metrics["n"] > 0
+
+
+def test_compute_series_weights_orders_by_total_sales():
+    df = pd.DataFrame(
+        {
+            "store_id": ["CA_1"] * 3 + ["CA_2"] * 3,
+            "item_id": ["FOODS_1_001"] * 3 + ["FOODS_1_002"] * 3,
+            "sales": [10, 10, 10, 1, 1, 1],  # CA_1 series sells 10x as much
+        }
+    )
+    weights = compute_series_weights(df, dampening=None)
+    sqrt_weights = compute_series_weights(df, dampening="sqrt")
+
+    assert (weights[df.store_id == "CA_1"] == 30).all()
+    assert (weights[df.store_id == "CA_2"] == 3).all()
+    # dampening narrows the gap between high- and low-volume series without
+    # reversing their order.
+    raw_ratio = 30 / 3
+    ca1_sqrt = sqrt_weights[df.store_id == "CA_1"].iloc[0]
+    ca2_sqrt = sqrt_weights[df.store_id == "CA_2"].iloc[0]
+    assert 1 < ca1_sqrt / ca2_sqrt < raw_ratio

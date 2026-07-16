@@ -45,6 +45,7 @@ def _make_args(**overrides) -> argparse.Namespace:
         serving_model_gcs_path="gs://my-project-retail-demand-raw/models/lightgbm_model.txt",
         bq_location="US",
         valid_days=28,
+        weight_dampening="sqrt",
         wrmsse_threshold=1.0,
         model_display_name="retail-demand-lightgbm",
     )
@@ -62,6 +63,7 @@ def test_build_parameter_values_includes_all_pipeline_params():
     assert params["serving_container_image_uri"].startswith("us-central1-docker.pkg.dev")
     assert params["serving_model_gcs_path"] == "gs://my-project-retail-demand-raw/models/lightgbm_model.txt"
     assert params["valid_days"] == 28
+    assert params["weight_dampening"] == "sqrt"
     assert params["wrmsse_threshold"] == 1.0
 
 
