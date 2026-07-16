@@ -251,7 +251,7 @@ def test_series_accuracy_excludes_predictions_older_than_the_recent_window(
     stale_row = pd.DataFrame(
         [
             {
-                "date": history["date"].max() - pd.Timedelta(days=90),
+                "date": history["date"].max() - pd.Timedelta(days=100),
                 "store_id": "CA_1",
                 "item_id": "FOODS_1_001",
                 "predicted_sales": 999,
