@@ -36,6 +36,7 @@ def training_pipeline(
     serving_model_gcs_path: str,
     bq_location: str = "US",
     valid_days: int = 28,
+    weight_dampening: str = "sqrt",
     wrmsse_threshold: float = DEFAULT_WRMSSE_THRESHOLD,
     model_display_name: str = "retail-demand-lightgbm",
 ) -> None:
@@ -50,6 +51,7 @@ def training_pipeline(
         training_data=extract_task.outputs["training_data"],
         project_id=project_id,
         valid_days=valid_days,
+        weight_dampening=weight_dampening,
     )
 
     with dsl.If(train_task.outputs["wrmsse"] < wrmsse_threshold, name="wrmsse-improved"):

@@ -71,6 +71,7 @@ def build_parameter_values(args: argparse.Namespace) -> dict:
         "serving_model_gcs_path": args.serving_model_gcs_path,
         "bq_location": args.bq_location,
         "valid_days": args.valid_days,
+        "weight_dampening": args.weight_dampening,
         "wrmsse_threshold": args.wrmsse_threshold,
         "model_display_name": args.model_display_name,
     }
@@ -148,6 +149,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--bq-location", default="US")
     parser.add_argument("--valid-days", type=int, default=28)
+    parser.add_argument(
+        "--weight-dampening",
+        choices=["sqrt", "log1p", "none"],
+        default="sqrt",
+        help="Weight training rows by each series' total sales (dampened) - "
+        "see models/train.py::compute_series_weights.",
+    )
     parser.add_argument("--wrmsse-threshold", type=float, default=DEFAULT_WRMSSE_THRESHOLD)
     parser.add_argument("--model-display-name", default="retail-demand-lightgbm")
     parser.add_argument("--compiled-path", default="artifacts/training_pipeline.yaml")

@@ -21,12 +21,14 @@ import datetime as dt
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from retail_demand.models.evaluate import evaluate_predictions
-from retail_demand.models.features import build_features, feature_columns
+from retail_demand.models.features import ID_COLUMNS, build_features, feature_columns
 
 DEFAULT_VALID_DAYS = 28
+DEFAULT_WEIGHT_DAMPENING = "sqrt"
 
 DEFAULT_LGB_PARAMS = {
     "objective": "regression",
@@ -46,6 +48,30 @@ def time_based_split(
     train = df[df["date"] <= cutoff]
     valid = df[df["date"] > cutoff]
     return train, valid
+
+
+def compute_series_weights(
+    train_df: pd.DataFrame, dampening: str | None = DEFAULT_WEIGHT_DAMPENING
+) -> pd.Series:
+    """Per-row training weight from each series' total training-period sales -
+    mirrors evaluate.py's WRMSSE weighting, so training loss optimizes
+    toward roughly what's actually being measured, instead of uniform
+    per-row MSE.
+
+    Dampened (sqrt by default) rather than raw total_sales: an undampened
+    weight would let a handful of high-volume series dominate gradient
+    updates almost entirely, starving the low-volume long tail that makes
+    up most of this catalog - the opposite of what we want. Pass
+    dampening=None for the undampened (raw WRMSSE-matching) weight.
+    """
+    totals = train_df.groupby(ID_COLUMNS)["sales"].transform("sum").astype(float)
+    if dampening == "sqrt":
+        return totals.pow(0.5)
+    if dampening == "log1p":
+        return np.log1p(totals)
+    if dampening is None:
+        return totals
+    raise ValueError(f"Unknown dampening: {dampening!r}")
 
 
 def cast_categoricals(
@@ -76,13 +102,21 @@ def train_lightgbm(
     target: str = "sales",
     params: dict | None = None,
     num_boost_round: int = 500,
+    sample_weight: pd.Series | None = None,
 ):
     """Train on `train_df`/`valid_df` as given — callers must already have run
-    `cast_categoricals` on them so training and later prediction agree."""
+    `cast_categoricals` on them so training and later prediction agree.
+
+    `sample_weight` (see compute_series_weights) only applies to the
+    training set, not validation - the tracked eval metric stays plain
+    unweighted RMSE, matching how MAPE/RMSE are reported elsewhere."""
     import lightgbm as lgb
 
     train_set = lgb.Dataset(
-        train_df[features], label=train_df[target], categorical_feature=categorical_features
+        train_df[features],
+        label=train_df[target],
+        categorical_feature=categorical_features,
+        weight=sample_weight.to_numpy() if sample_weight is not None else None,
     )
     valid_set = lgb.Dataset(
         valid_df[features],
@@ -102,9 +136,19 @@ def train_lightgbm(
 
 
 def run_training(
-    df: pd.DataFrame, valid_days: int = DEFAULT_VALID_DAYS
+    df: pd.DataFrame,
+    valid_days: int = DEFAULT_VALID_DAYS,
+    weight_dampening: str | None = None,
 ) -> tuple[object, dict, pd.DataFrame, list[str]]:
-    """Feature-build, split, train, and evaluate. Returns (model, metrics, valid_df, features)."""
+    """Feature-build, split, train, and evaluate. Returns (model, metrics, valid_df, features).
+
+    weight_dampening: None (default) trains with plain unweighted rows;
+    "sqrt"/"log1p" weight training rows by compute_series_weights() so the
+    training loss leans toward what WRMSSE actually measures. Off by
+    default until validated against a specific dataset - see
+    compute_series_weights' docstring for why raw (undampened) weighting
+    is not offered as a casual default.
+    """
     featured = build_features(df)
     features, categorical = feature_columns(featured)
 
@@ -113,7 +157,14 @@ def run_training(
     valid_df = valid_df.dropna(subset=features)
     train_df, valid_df = cast_categoricals(train_df, valid_df, categorical)
 
-    model = train_lightgbm(train_df, valid_df, features, categorical)
+    sample_weight = (
+        compute_series_weights(train_df, dampening=weight_dampening)
+        if weight_dampening is not None
+        else None
+    )
+    model = train_lightgbm(
+        train_df, valid_df, features, categorical, sample_weight=sample_weight
+    )
 
     preds = model.predict(valid_df[features])
     pred_df = valid_df[["date", "store_id", "item_id"]].assign(
@@ -142,14 +193,22 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--valid-days", type=int, default=DEFAULT_VALID_DAYS)
     parser.add_argument("--model-out", default="artifacts/lightgbm_model.txt")
     parser.add_argument("--run-log", default="artifacts/runs.jsonl")
+    parser.add_argument(
+        "--weight-dampening",
+        choices=["sqrt", "log1p", "none"],
+        default=None,
+        help="Weight training rows by each series' total sales (dampened), "
+        "matching WRMSSE's weighting. Omit for plain unweighted training.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
     df = pd.read_csv(args.data, parse_dates=["date"])
+    weight_dampening = None if args.weight_dampening in (None, "none") else args.weight_dampening
 
-    model, metrics, _, features = run_training(df, args.valid_days)
+    model, metrics, _, features = run_training(df, args.valid_days, weight_dampening)
 
     model_out = Path(args.model_out)
     model_out.parent.mkdir(parents=True, exist_ok=True)
@@ -159,6 +218,7 @@ def main() -> None:
         "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
         "data": str(args.data),
         "valid_days": args.valid_days,
+        "weight_dampening": weight_dampening,
         "features": features,
         "metrics": metrics,
         "model_out": str(model_out),

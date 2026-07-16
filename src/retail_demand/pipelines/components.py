@@ -60,11 +60,19 @@ def train_model(
     model: dsl.Output[dsl.Model],
     project_id: str,
     valid_days: int = 28,
+    weight_dampening: str = "sqrt",
     monitoring_dataset: str = "retail_demand_marts",
     runs_table: str = "model_runs",
 ) -> NamedTuple("Metrics", [("wrmsse", float), ("mape", float), ("rmse", float)]):
     """Feature-build + train a LightGBM model on the extracted data, saving it
     to `model` and logging its metrics to BigQuery.
+
+    weight_dampening ("sqrt", "log1p", or "none") weights training rows by
+    each series' total sales (see train.py's compute_series_weights) -
+    "sqrt" is the validated default: cuts the fraction of series with
+    completely flat predictions roughly in half versus unweighted training,
+    while still improving WRMSSE over the original unweighted/un-featured
+    baseline.
 
     The BigQuery row is what retrain_trigger.py reads to find the latest
     WRMSSE (train.py's local JSONL run log isn't reachable from a separate
@@ -79,7 +87,10 @@ def train_model(
     from retail_demand.models.train import run_training
 
     df = pd.read_csv(training_data.path, parse_dates=["date"])
-    trained_model, metrics, _, _ = run_training(df, valid_days=valid_days)
+    dampening = None if weight_dampening == "none" else weight_dampening
+    trained_model, metrics, _, _ = run_training(
+        df, valid_days=valid_days, weight_dampening=dampening
+    )
     trained_model.save_model(model.path)
 
     run_row = pd.DataFrame(
