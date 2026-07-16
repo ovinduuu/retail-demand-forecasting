@@ -53,6 +53,11 @@ def training_pipeline(
         valid_days=valid_days,
         weight_dampening=weight_dampening,
     )
+    # Default Vertex machine OOM'd once the feature set grew (lag_1/2/3,
+    # rolling std, days_since_last_sale) on the full ~20M-row training
+    # extract - explicit headroom instead of relying on the default.
+    train_task.set_cpu_limit("8")
+    train_task.set_memory_limit("32G")
 
     with dsl.If(train_task.outputs["wrmsse"] < wrmsse_threshold, name="wrmsse-improved"):
         register_model(
