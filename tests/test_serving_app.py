@@ -268,3 +268,24 @@ def test_series_accuracy_excludes_predictions_older_than_the_recent_window(
     assert resp.status_code == 200
     points = resp.json()
     assert all(p["predicted_sales"] != 999 for p in points)
+
+
+def test_model_info_returns_the_latest_run(tmp_path, monkeypatch):
+    import json
+
+    run = {
+        "trained_at": "2026-07-16T12:20:15+00:00",
+        "wrmsse": 0.7087,
+        "mape": 0.5018,
+        "rmse": 1.8668,
+        "n_train_rows": 20108535,
+    }
+    run_path = tmp_path / "model_run.json"
+    run_path.write_text(json.dumps(run))
+    monkeypatch.setenv("LOCAL_MODEL_RUN_JSON", str(run_path))
+
+    client = TestClient(app)
+    resp = client.get("/model-info")
+
+    assert resp.status_code == 200
+    assert resp.json() == run

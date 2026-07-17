@@ -251,6 +251,44 @@ def _query_series_accuracy(store_id: str, item_id: str) -> pd.DataFrame:
     return result
 
 
+def _query_latest_model_run() -> dict | None:
+    """Most recent training run's metrics, from BigQuery's model_runs table
+    (written by pipelines/components.py::train_model) - lets the frontend
+    show which model is currently live and when it last retrained, instead
+    of retraining being an invisible backend-only event. Local dev mode
+    (LOCAL_MODEL_RUN_JSON) is optional since this is a display-only nicety,
+    not something the rest of local development depends on.
+    """
+    local_json = os.environ.get("LOCAL_MODEL_RUN_JSON")
+    if local_json:
+        import json
+
+        with open(local_json) as f:
+            return json.load(f)
+
+    from google.cloud import bigquery
+
+    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
+    dataset = os.environ.get("BQ_DATASET_MARTS", "retail_demand_marts")
+    query = (
+        "SELECT trained_at, wrmsse, mape, rmse, n_train_rows "
+        f"FROM `{dataset}.model_runs` ORDER BY trained_at DESC LIMIT 1"
+    )
+    rows = list(client.query(query).result())
+    if not rows:
+        return None
+    row = rows[0]
+    trained_at = row.trained_at
+    trained_at_str = trained_at.isoformat() if hasattr(trained_at, "isoformat") else str(trained_at)
+    return {
+        "trained_at": trained_at_str,
+        "wrmsse": float(row.wrmsse),
+        "mape": float(row.mape),
+        "rmse": float(row.rmse),
+        "n_train_rows": int(row.n_train_rows),
+    }
+
+
 class SeriesInfo(BaseModel):
     store_id: str
     item_id: str
@@ -288,9 +326,23 @@ class SeriesAccuracyPoint(BaseModel):
     actual_sales: float
 
 
+class ModelInfo(BaseModel):
+    trained_at: str
+    wrmsse: float
+    mape: float
+    rmse: float
+    n_train_rows: int
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/model-info", response_model=ModelInfo | None)
+def get_model_info() -> ModelInfo | None:
+    info = _query_latest_model_run()
+    return ModelInfo(**info) if info else None
 
 
 @app.post("/predict", response_model=PredictResponse)

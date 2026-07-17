@@ -26,3 +26,11 @@ export interface SeriesAccuracyPoint {
   predicted_sales: number;
   actual_sales: number;
 }
+
+export interface ModelInfo {
+  trained_at: string; // ISO timestamp
+  wrmsse: number;
+  mape: number;
+  rmse: number;
+  n_train_rows: number;
+}

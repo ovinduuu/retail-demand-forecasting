@@ -102,6 +102,26 @@ export default function ForecastChart({
     return m;
   }, [predictedPoints]);
 
+  // Summarizes the *entire* fetched accuracy window (not just the points
+  // that land inside the visible history range) - a concrete number that
+  // visibly changes when switching series, unlike the dashed predicted
+  // line which is easy to miss for low-volume items where it sits near 0.
+  const seriesAccuracySummary = useMemo(() => {
+    if (accuracy.length === 0) return null;
+    const mae =
+      accuracy.reduce((sum, p) => sum + Math.abs(p.predicted_sales - p.actual_sales), 0) /
+      accuracy.length;
+    const withNonzeroActual = accuracy.filter((p) => p.actual_sales > 0);
+    const mape =
+      withNonzeroActual.length > 0
+        ? withNonzeroActual.reduce(
+            (sum, p) => sum + Math.abs(p.predicted_sales - p.actual_sales) / p.actual_sales,
+            0,
+          ) / withNonzeroActual.length
+        : null;
+    return { mae, mape, n: accuracy.length };
+  }, [accuracy]);
+
   const maxValue = useMemo(
     () =>
       Math.max(
@@ -164,9 +184,19 @@ export default function ForecastChart({
   return (
     <figure className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <figcaption className="text-sm font-medium text-[var(--text-secondary)]">
-          Daily sales — {seriesLabel}
-        </figcaption>
+        <div>
+          <figcaption className="text-sm font-medium text-[var(--text-secondary)]">
+            Daily sales — {seriesLabel}
+          </figcaption>
+          {seriesAccuracySummary && (
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              This series: MAE {seriesAccuracySummary.mae.toFixed(2)}
+              {seriesAccuracySummary.mape !== null &&
+                ` · MAPE ${(seriesAccuracySummary.mape * 100).toFixed(1)}%`}{" "}
+              ({seriesAccuracySummary.n} matched days)
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setShowTable((v) => !v)}
