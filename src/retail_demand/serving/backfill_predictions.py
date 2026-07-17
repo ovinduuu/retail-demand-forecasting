@@ -21,10 +21,11 @@ load_to_bigquery.py are:
 import argparse
 import datetime as dt
 
+import numpy as np
 import pandas as pd
 
-from retail_demand.models.features import RAW_SOURCE_COLUMNS
-from retail_demand.serving.batch_predict import predict_next_day, resolve_model_path
+from retail_demand.models.features import RAW_SOURCE_COLUMNS, build_features, feature_columns
+from retail_demand.serving.batch_predict import resolve_model_path
 
 DEFAULT_BACKFILL_DAYS = 90
 DEFAULT_LOOKBACK_DAYS = 60
@@ -37,16 +38,34 @@ def backfill_targets(latest_actual_date: dt.date, backfill_days: int) -> list[dt
 
 
 def run_backfill(history: pd.DataFrame, targets: list[dt.date], model) -> pd.DataFrame:
-    """Predict each date in `targets`, using only history strictly before it."""
-    predictions = []
-    for target in targets:
-        window = history[history["date"] < pd.Timestamp(target)]
-        if window.empty:
-            continue
-        predictions.append(predict_next_day(window, model))
-    if not predictions:
+    """Predict each date in `targets`, using only prior-day data for that
+    date's features.
+
+    Every target date already has real data in `history` (this is a
+    backtest, not a live forecast of an unknown day) - build_features()'s
+    lag/rolling columns are shift-based (backward-only, see its docstring),
+    so featuring the whole history once and then selecting each target
+    date's row is equivalent to, but far cheaper than, rebuilding features
+    from scratch per target date. The straightforward per-target loop this
+    replaced re-ran build_features() over an increasingly large slice up to
+    len(targets) times - fine for the original handful of lag/rolling
+    columns, but scaled badly once more features were added (real backfill
+    runs went from minutes to hours).
+    """
+    featured = build_features(history)
+    features, categorical = feature_columns(featured)
+    for col in categorical:
+        featured[col] = featured[col].astype("category")
+
+    target_dates = pd.to_datetime(pd.Series(targets, dtype="object")).dt.normalize()
+    target_rows = featured[featured["date"].isin(target_dates)].copy()
+    if target_rows.empty:
         return pd.DataFrame(columns=["date", "store_id", "item_id", "predicted_sales"])
-    return pd.concat(predictions, ignore_index=True)
+
+    preds = model.predict(target_rows[features])
+    return target_rows[["date", "store_id", "item_id"]].assign(
+        predicted_sales=np.clip(preds, 0, None).round()
+    )
 
 
 def _latest_actual_date(project_id: str, dataset: str, table: str) -> dt.date:
