@@ -2,6 +2,7 @@ import type {
   AccuracyDailyPoint,
   ForecastPoint,
   HistoryPoint,
+  ModelInfo,
   SeriesAccuracyPoint,
   SeriesInfo,
 } from "./types";
@@ -53,4 +54,8 @@ export function fetchSeriesAccuracy(
   return fetchJson<SeriesAccuracyPoint[]>(
     `/accuracy/${encodeURIComponent(storeId)}/${encodeURIComponent(itemId)}`,
   );
+}
+
+export function fetchModelInfo(): Promise<ModelInfo | null> {
+  return fetchJson<ModelInfo | null>("/model-info");
 }
