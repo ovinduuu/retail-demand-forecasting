@@ -110,7 +110,7 @@ export default function AccuracyChart({ daily, loading }: Props) {
           onClick={() => setShowTable((v) => !v)}
           className="text-xs font-medium text-[var(--text-secondary)] underline hover:text-[var(--text-primary)]"
         >
-          {showTable ? "Show chart" : "View as table"}
+          {showTable ? "Show the Chart" : "View as Table"}
         </button>
       </div>
 

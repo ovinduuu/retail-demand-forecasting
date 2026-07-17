@@ -22,13 +22,13 @@ export default function ModelInfoCard({ info }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md border border-[var(--gridline)] bg-[var(--surface-1)] px-4 py-3 text-xs text-[var(--text-secondary)]">
       <span>
-        <span className="font-medium text-[var(--text-primary)]">Current model</span> · trained{" "}
+        <span className="font-medium text-[var(--text-primary)]">Current model</span> · Trained{" "}
         {formatTrainedAt(info.trained_at)}
       </span>
       <span>WRMSSE {info.wrmsse.toFixed(4)}</span>
       <span>MAPE {(info.mape * 100).toFixed(1)}%</span>
       <span>RMSE {info.rmse.toFixed(3)}</span>
-      <span>{info.n_train_rows.toLocaleString()} training rows</span>
+      <span>{info.n_train_rows.toLocaleString()} Training Rows</span>
     </div>
   );
 }

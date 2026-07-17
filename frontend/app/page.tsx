@@ -34,7 +34,7 @@ export default async function Home() {
       <header className="flex flex-col gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
-            Retail demand forecast
+            Retail Demand Forecast
           </h1>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Pick a store/item to see recent sales and the model&apos;s one-step-ahead forecast.
@@ -46,7 +46,7 @@ export default async function Home() {
       {series.length > 0 && (
         <section className="border-t border-[var(--gridline)] pt-6">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-            Model performance — all series
+            Model Performance — All Series
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
             How close forecasts came to what actually sold, averaged across every series in the
