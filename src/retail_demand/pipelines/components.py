@@ -60,7 +60,7 @@ def train_model(
     model: dsl.Output[dsl.Model],
     project_id: str,
     valid_days: int = 28,
-    weight_dampening: str = "sqrt",
+    weight_dampening: str = "none",
     monitoring_dataset: str = "retail_demand_marts",
     runs_table: str = "model_runs",
 ) -> NamedTuple("Metrics", [("wrmsse", float), ("mape", float), ("rmse", float)]):
@@ -68,11 +68,12 @@ def train_model(
     to `model` and logging its metrics to BigQuery.
 
     weight_dampening ("sqrt", "log1p", or "none") weights training rows by
-    each series' total sales (see train.py's compute_series_weights) -
-    "sqrt" is the validated default: cuts the fraction of series with
-    completely flat predictions roughly in half versus unweighted training,
-    while still improving WRMSSE over the original unweighted/un-featured
-    baseline.
+    each series' total sales (see train.py's compute_series_weights).
+    Defaults to "none": "sqrt" was tried in production and did cut flat
+    predictions roughly in half, but at a real MAPE cost (47.3% -> 50.3% in
+    validation) that mattered more once MAPE became the priority metric -
+    unweighted training beats every weighted variant tested on both WRMSSE
+    and MAPE, so there's no upside left to trade away.
 
     The BigQuery row is what retrain_trigger.py reads to find the latest
     WRMSSE (train.py's local JSONL run log isn't reachable from a separate
