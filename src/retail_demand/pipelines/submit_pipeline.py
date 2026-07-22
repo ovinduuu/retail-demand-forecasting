@@ -152,7 +152,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--weight-dampening",
         choices=["sqrt", "log1p", "none"],
-        default="sqrt",
+        default="none",
         help="Weight training rows by each series' total sales (dampened) - "
         "see models/train.py::compute_series_weights.",
     )

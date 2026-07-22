@@ -36,7 +36,7 @@ def training_pipeline(
     serving_model_gcs_path: str,
     bq_location: str = "US",
     valid_days: int = 28,
-    weight_dampening: str = "sqrt",
+    weight_dampening: str = "none",
     wrmsse_threshold: float = DEFAULT_WRMSSE_THRESHOLD,
     model_display_name: str = "retail-demand-lightgbm",
 ) -> None:
